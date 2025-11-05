@@ -1,5 +1,16 @@
 import string
 import copy
+import json
+
+pawnJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\p_table_adjusted.json"
+knightJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\n_table_adjusted.json"
+kingJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\k_table.json"
+queenJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\q_table.json"
+bishopJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\b_table_adjusted.json"
+rookJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\r_table.json"
+
+
+
 
 castling_rights = {
     'white_king_moved': False,
@@ -421,9 +432,9 @@ def makeMove(board, fromSquare, toSquare):
 
     return tempboard
     
-def evaluateBoard(board):
+def evaluateBoard(board,piecePositionMap):
     material = computeMaterial(board)
-    position = computePosition(board)
+    position = computePosition(board,piecePositionMap)
     mobility = computeMobility(board)
     pawnStructure = computePawnStructure(board)
     kingSafety = computeKingSafety(board)
@@ -447,17 +458,41 @@ def computeMaterial(board):
                 score+=pieceValue[piece]
     return score
 
-def computePosition(board):
-    pass
+
+def importPositionMap():
+    listOfJsonPath = [pawnJsonPath,knightJsonPath,kingJsonPath,queenJsonPath,bishopJsonPath,rookJsonPath]
+    piecePositionMap = {}
+    for path in listOfJsonPath:
+        with open(path,'r',encoding='utf-8') as p:
+            data = json.load(p)
+            piece = list(data.keys())[0]
+            positionMap = data[piece]
+            piecePositionMap[piece] = positionMap
+            piecePositionMap[piece.lower()] = positionMap[::-1]
+    return piecePositionMap
+
+def computePosition(board,piecePositionMap):
+    score = 0
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece == '.':
+                continue
+            piecePositionScore = piecePositionMap[piece][row][col]
+            if piece.isupper():
+                score += piecePositionScore
+            elif piece.islower():
+                score -= piecePositionScore
+    return score
 
 def computeMobility(board):
-    pass
+    return 0
 
 def computePawnStructure(board):
-    pass
+    return 0
 
 def computeKingSafety(board):
-    pass
+    return 0
 
 
 
@@ -466,21 +501,20 @@ def computeKingSafety(board):
 
 
 
-def minimax(board,depth,alpha,beta,maximizingPlayer):
-    
+def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap):
     if depth == 0:
-        return evaluateBoard(board)
+        return evaluateBoard(board,piecePositionMap)
     color = 'white' if maximizingPlayer else 'black'
     moves = generateAlllegalMoves(board,color) 
     if moves == []:
-        return evaluateBoard(board)
+        return evaluateBoard(board,piecePositionMap)
     
     if maximizingPlayer:
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
             
             newboard = makeMove(board,fromSquare,toSquare)
-            eval = minimax(newboard,depth-1,alpha,beta,False)
+            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap)
             maxEval = max(eval,maxEval)
             alpha = max(alpha,maxEval)
             if alpha>=beta:
@@ -491,14 +525,14 @@ def minimax(board,depth,alpha,beta,maximizingPlayer):
         for fromSquare,toSquare in moves:
             
             newboard = makeMove(board,fromSquare,toSquare)
-            eval = minimax(newboard,depth-1,alpha,beta,True)
+            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap)
             minEval = min(eval,minEval)
             beta = min(beta,minEval)
             if beta<=alpha:
                 break
         return minEval
         
-def findBestMove(board,color,depth):
+def findBestMove(board,color,depth,piecePositionMap):
     bestMove = None
     maximizingPlayer = True if color == 'white' else False
     bestScore = -float('inf') if maximizingPlayer else float('inf')
@@ -506,7 +540,7 @@ def findBestMove(board,color,depth):
     
     for fromSquare,toSquare in moves:
         newboard = makeMove(board,fromSquare,toSquare)
-        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer)
+        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap)
         if maximizingPlayer:
             if bestScore<futureScore:
                 bestScore = futureScore
@@ -528,13 +562,15 @@ def isOpponent(piece1,piece2):
             return True
     return False
 
+
 def main():
     board = initializeBoard()
+    piecePositionMap = importPositionMap()
     printBoard(board)
     numOfSteps = 0
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
-        print(findBestMove(board,color,4))
+        print(findBestMove(board,color,4,piecePositionMap))
         move = input("请输入你的走法（例如 e2 e4，或输入 q 退出）：")
         if move.lower() == 'q':
             break
@@ -549,4 +585,173 @@ def main():
             
 main()
 
-ted ===")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############################################################################################################################################################
+# def test_allMoves():
+#     board = initializeBoard()
+#     whiteMoves = generateAllLegalMoves(board, 'white')
+#     blackMoves = generateAllLegalMoves(board, 'black')
+#     print("White:", len(whiteMoves), "moves")
+#     print("Black:", len(blackMoves), "moves")
+#     print("Example white moves:", whiteMoves[:10])
+    
+# test_allMoves()
+# def test_slidingPieces():
+#     print("=== Sliding Piece Test ===")
+
+#     # 空棋盘
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[4][3] = 'Q'  # Queen at d4
+#     print("Queen d4:", sorted(generateQueenMoves(board, 'd4')))
+
+#     board[4][3] = 'R'  # Rook at d4
+#     print("Rook d4:", sorted(generateRookMoves(board, 'd4')))
+
+#     board[4][3] = 'B'  # Bishop at d4
+#     print("Bishop d4:", sorted(generateBishopMoves(board, 'd4')))
+
+# test_slidingPieces()
+
+# def test_rook_moves():
+#     print("=== Rook General Test ===")
+
+#     # 1️⃣ 空棋盘
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[4][3] = 'R'  # d4
+#     print("Rook at d4 (empty):", sorted(generateRookMoves(board, 'd4')))
+
+#     # 2️⃣ 被己方兵挡住
+#     board = initializeBoard()
+#     print("Rook at a1 (blocked):", generateRookMoves(board, 'a1'))  # []
+
+#     # 3️⃣ 敌人阻挡
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[4][3] = 'R'
+#     board[4][6] = 'p'
+#     print("Rook at d4, enemy at g4:", generateRookMoves(board, 'd4'))
+
+#     # 4️⃣ 边界格
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[0][0] = 'R'
+#     print("Rook at a8:", generateRookMoves(board, 'a8'))
+
+#     # 5️⃣ 混合阻挡
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[3][3] = 'R'  # d5
+#     board[3][6] = 'p'  # g5 (敌)
+#     board[3][1] = 'P'  # b5 (友)
+#     print("Rook at d5, mix block:", generateRookMoves(board, 'd5'))
+# test_rook_moves()
+# def test_generateBishopMoves_general():
+#     print("=== General Bishop Move Test ===")
+
+#     # Helper to visualize test results
+#     def show_result(name, moves, expected=None):
+#         print(f"\n{name}")
+#         print("  moves:", sorted(moves))
+#         if expected is not None:
+#             print("  expected:", sorted(expected))
+#             if sorted(moves) == sorted(expected):
+#                 print("  ✅ PASS")
+#             else:
+#                 print("  ❌ FAIL")
+
+#     # 1️⃣ 空棋盘测试：主教在 d4
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[4][3] = 'B'  # d4
+#     moves = generateBishopMoves(board, 'd4')
+#     expected = [
+#         # ↖
+#         'c3','b2','a1',
+#         # ↗
+#         'e5','f6','g7','h8',
+#         # ↙
+#         'c5','b6','a7',
+#         # ↘
+#         'e3','f2','g1'
+#     ]
+#     show_result("Case 1: empty board, bishop at d4", moves, expected)
+
+#     # 2️⃣ 己方子阻挡：主教在 c1，被兵挡在 d2
+#     board = initializeBoard()
+#     moves = generateBishopMoves(board, 'c1')
+#     expected = []  # 被 d2 白兵挡住
+#     show_result("Case 2: blocked by own pawn", moves, expected)
+
+#     # 3️⃣ 敌方子可吃：清空棋盘，放主教和敌兵
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[4][3] = 'B'   # d4
+#     board[6][5] = 'p'   # f2 (敌人)
+#     moves = generateBishopMoves(board, 'd4')
+#     expected = ['c3','b2','a1','e5','f6','g7','h8','e3','f2','c5','b6','a7']
+#     show_result("Case 3: enemy on diagonal (should capture f2)", moves, expected)
+
+#     # 4️⃣ 边界格测试：主教在 a1
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[7][0] = 'B'
+#     moves = generateBishopMoves(board, 'a1')
+#     expected = ['b2','c3','d4','e5','f6','g7','h8']
+#     show_result("Case 4: bishop at a1", moves, expected)
+
+#     # 5️⃣ 混合测试：主教被敌人挡在一个方向，被己方挡在另一个方向
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[3][3] = 'B'  # d5
+#     board[1][1] = 'p'  # b7 敌人
+#     board[5][5] = 'P'  # f3 自己人
+#     moves = generateBishopMoves(board, 'd5')
+#     expected = ['c4','b3','a2','e6','f7','g8','c6','b7','e4']  # b7吃掉，但不越过；f3挡住
+#     show_result("Case 5: mixed blocking", moves, expected)
+
+#     print("\n=== All Bishop Tests Completed ===")
+    
+    
+# test_generateBishopMoves_general()
+
+# def test_pawn_double_step_block():
+#     print("=== Pawn Double Step Blocking Test ===")
+#     board = initializeBoard()
+#     printBoard(board)
+
+#     # ✅ Case 1: 正常开局 e2 -> ['e3', 'e4']
+#     print("\nCase 1: e2 起始行（前方空）")
+#     print("Expected: ['e3', 'e4']")
+#     print("Actual:  ", generatePawnMoves(board, 'e2'))
+
+#     # ✅ Case 2: e3 被挡 —— 我们人为放个棋子挡在 e3
+#     print("\nCase 2: e3 被挡（前一格非空）")
+#     board[5][4] = 'p'   # 放一个黑兵挡住 e3 （行=5, 列=4）
+#     printBoard(board)
+#     print("Expected: []  或 ['e3'] 但绝不应出现 e4")
+#     print("Actual:  ", generatePawnMoves(board, 'e2'))
+
+#     # ✅ Case 3: 黑兵正常（d7）
+#     print("\nCase 3: 黑兵 d7（前方空）")
+#     board = initializeBoard()
+#     print("Expected: ['d6', 'd5']")
+#     print("Actual:  ", generatePawnMoves(board, 'd7'))
+
+#     # ✅ Case 4: 黑兵 d7 被挡（d6 有白兵）
+#     print("\nCase 4: 黑兵 d7 被挡（d6 非空）")
+#     board = initializeBoard()
+#     board[2][3] = 'P'   # 行2是 rank=6 的格子，挡住 d6
+#     printBoard(board)
+#     print("Expected: []  或 ['d6'] 但绝不应出现 d5")
+#     print("Actual:  ", generatePawnMoves(board, 'd7'))
+
+#     print("\n=== Test Completed ===")
