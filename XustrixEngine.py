@@ -1,7 +1,8 @@
 import string
 import copy
 import json
-
+import numpy as np
+import chess
 pawnJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\p_table_adjusted.json"
 knightJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\n_table_adjusted.json"
 kingJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\k_table.json"
@@ -20,6 +21,9 @@ castling_rights = {
     'black_rook_a_moved': False,
     'black_rook_h_moved': False
 }
+
+isWhiteQueenExist = True
+isBlackQueenExist = True
 
 
 def algebraicToIndex(sqaure):
@@ -57,6 +61,7 @@ def initializeBoard():
     return board
 
 def movePiece(board, fromSquare, toSquare):
+    global isWhiteQueenExist, isBlackQueenExist
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
     piece = board[fromRow][fromCol]
@@ -86,7 +91,10 @@ def movePiece(board, fromSquare, toSquare):
     else:
         print(f"{piece} captures {target} at {toSquare}")
 
-
+    if target == 'Q':
+        isWhiteQueenExist = False
+    if target == 'q':
+        isBlackQueenExist = False
     board[toRow][toCol] = piece
     board[fromRow][fromCol] = '.'
 
@@ -379,14 +387,15 @@ def generateAlllegalMoves(board, color):
             for toSquare in moveList:
                 PseudoMoves.append((square,toSquare))
     for fromSquare,toSquare in PseudoMoves:
-        newboard = makeMove(board,fromSquare,toSquare)
+        newboard, _ = makeMove(board,fromSquare,toSquare,copy.deepcopy(castling_rights))
         if not isKingChecked(newboard,color):
             legalMoves.append((fromSquare,toSquare))
     return legalMoves
 
 
-def makeMove(board, fromSquare, toSquare):
-    tempboard = copy.deepcopy(board)
+def makeMove(board, fromSquare, toSquare,rights):
+    rights = copy.deepcopy(rights)
+    tempboard = [row[:] for row in board]
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
     piece = tempboard[fromRow][fromCol]
@@ -402,7 +411,7 @@ def makeMove(board, fromSquare, toSquare):
 
 
     if piece == 'K':
-        castling_rights['white_king_moved'] = True
+        rights['white_king_moved'] = True
         if fromSquare == 'e1' and toSquare == 'g1':  # 短易位
             tempboard[7][5] = 'R'
             tempboard[7][7] = '.'
@@ -410,7 +419,7 @@ def makeMove(board, fromSquare, toSquare):
             tempboard[7][3] = 'R'
             tempboard[7][0] = '.'
     elif piece == 'k':
-        castling_rights['black_king_moved'] = True
+        rights['black_king_moved'] = True
         if fromSquare == 'e8' and toSquare == 'g8':
             tempboard[0][5] = 'r'
             tempboard[0][7] = '.'
@@ -421,16 +430,16 @@ def makeMove(board, fromSquare, toSquare):
 
     if piece == 'R':
         if fromSquare == 'a1':
-            castling_rights['white_rook_a_moved'] = True
+            rights['white_rook_a_moved'] = True
         elif fromSquare == 'h1':
-            castling_rights['white_rook_h_moved'] = True
+            rights['white_rook_h_moved'] = True
     elif piece == 'r':
         if fromSquare == 'a8':
-            castling_rights['black_rook_a_moved'] = True
+            rights['black_rook_a_moved'] = True
         elif fromSquare == 'h8':
-            castling_rights['black_rook_h_moved'] = True
+            rights['black_rook_h_moved'] = True
 
-    return tempboard
+    return tempboard,rights
     
 def evaluateBoard(board,piecePositionMap):
     material = computeMaterial(board)
@@ -445,11 +454,12 @@ def evaluateBoard(board,piecePositionMap):
         pawnStructure * 0.5 +
         kingSafety * 0.7
     )
+    totalScore += 20
     return totalScore
 
 def computeMaterial(board):
-    pieceValue = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0,
-                'p': -1, 'n': -3, 'b': -3, 'r': -5, 'q': -9, 'k': 0}
+    pieceValue = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 0,
+                'p': -100, 'n': -320, 'b': -330, 'r': -500, 'q': -900, 'k': 0}
     score = 0
     for row in range(8):
         for col in range(8):
@@ -466,19 +476,50 @@ def importPositionMap():
         with open(path,'r',encoding='utf-8') as p:
             data = json.load(p)
             piece = list(data.keys())[0]
-            positionMap = data[piece]
-            piecePositionMap[piece] = positionMap
-            piecePositionMap[piece.lower()] = positionMap[::-1]
+            arr = np.array(data[piece], dtype=float)
+            
+            
+            arr = np.nan_to_num(arr, nan=0.0)
+            arr -= np.mean(arr)
+            
+            piecePositionMap[piece] = arr.tolist()
+            piecePositionMap[piece.lower()] = arr[::-1].tolist()
     return piecePositionMap
 
 def computePosition(board,piecePositionMap):
+    global isWhiteQueenExist, isBlackQueenExist
+    
+    pieceCoefficientInOpen = {'p':1.0,'P':1.0,'n':1.4,'N':1.4,'b':1.3,'B':1.3,
+                              'r':0.8,'R':0.8,'q':0.5,'Q':0.5,'k':1.0,'K':1.0}
+    pieceCoefficientInEnd = {'p':1.2,'P':1.2,'n':1.0,'N':1.0,'b':1.1,'B':1.1,
+                              'r':1.0,'R':1.0,'q':0.5,'Q':0.5,'k':2.0,'K':2.0}
+    piecePositionScoreCap = {'p':20,'n':30,'b':30,'q':10,'r':20,'k':20}
+    isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
+    pstScale = 0.3
+    if isEndGame:
+        pstScale = 0.15
     score = 0
+    if isEndGame:
+        piecePositionScoreCap['k'] = 60
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
             if piece == '.':
                 continue
-            piecePositionScore = piecePositionMap[piece][row][col]
+            if not isEndGame:
+                piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
+                cap = piecePositionScoreCap[piece.lower()]
+                if piecePositionScore > cap:
+                    piecePositionScore = cap
+                elif piecePositionScore < -cap:
+                    piecePositionScore = -cap
+            else:
+                piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
+                cap = piecePositionScoreCap[piece.lower()]
+                if piecePositionScore > cap:
+                    piecePositionScore = cap
+                elif piecePositionScore < -cap:
+                    piecePositionScore = -cap
             if piece.isupper():
                 score += piecePositionScore
             elif piece.islower():
@@ -501,7 +542,7 @@ def computeKingSafety(board):
 
 
 
-def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap):
+def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights):
     if depth == 0:
         return evaluateBoard(board,piecePositionMap)
     color = 'white' if maximizingPlayer else 'black'
@@ -513,8 +554,8 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap):
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
             
-            newboard = makeMove(board,fromSquare,toSquare)
-            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap)
+            newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
+            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap,newrights)
             maxEval = max(eval,maxEval)
             alpha = max(alpha,maxEval)
             if alpha>=beta:
@@ -524,8 +565,8 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap):
         minEval = float('inf')
         for fromSquare,toSquare in moves:
             
-            newboard = makeMove(board,fromSquare,toSquare)
-            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap)
+            newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
+            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap,newrights)
             minEval = min(eval,minEval)
             beta = min(beta,minEval)
             if beta<=alpha:
@@ -537,10 +578,11 @@ def findBestMove(board,color,depth,piecePositionMap):
     maximizingPlayer = True if color == 'white' else False
     bestScore = -float('inf') if maximizingPlayer else float('inf')
     moves = generateAlllegalMoves(board,color)
+    rights = copy.deepcopy(castling_rights)
     
     for fromSquare,toSquare in moves:
-        newboard = makeMove(board,fromSquare,toSquare)
-        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap)
+        newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
+        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,newrights)
         if maximizingPlayer:
             if bestScore<futureScore:
                 bestScore = futureScore
@@ -566,6 +608,7 @@ def isOpponent(piece1,piece2):
 def main():
     board = initializeBoard()
     piecePositionMap = importPositionMap()
+    
     printBoard(board)
     numOfSteps = 0
     while True:
