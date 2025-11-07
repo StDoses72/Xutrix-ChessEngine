@@ -543,8 +543,18 @@ def computePosition(board,piecePositionMap):
     return score
 
 def computeMobility(board,moves,mobilityHint=None):
+    global isWhiteQueenExist, isBlackQueenExist
+    isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
     score = 0
-    
+    pieceCoefficientMap = {'N':1.0,'B':1.0,'P':0.5,'R':0.8,'K':(0.3 if not isEndGame else 1),'Q':0.6}
+    mobilityCap = {
+    'N': 30,   
+    'B': 40,   
+    'R': 25,   
+    'Q': 20,   
+    'K': 15,   
+    'P': 10    
+}
     if mobilityHint != None:
         score+= mobilityHint
     else:#Only use when in indepent evaluation
@@ -553,11 +563,66 @@ def computeMobility(board,moves,mobilityHint=None):
         score += numWhite-numBlack
         #return 0
     
-    for move in moves:
-        pass
-        
-        
-        
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            fromSquare = indexToAlgebraic(row,col)
+            if piece =='.':
+                continue
+            if piece == 'P' or piece == 'p':
+                moveForPiece = generatePawnMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['P']:
+                    addingscore = mobilityCap['P']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
+            elif piece == 'N' or piece == 'n':
+                moveForPiece = generateKnightMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['N']:
+                    addingscore = mobilityCap['N']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
+            elif piece == 'B' or piece == 'b':
+                moveForPiece = generateBishopMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['B']:
+                    addingscore = mobilityCap['B']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
+            elif piece == 'R' or piece == 'r':
+                moveForPiece = generateRookMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['R']:
+                    addingscore = mobilityCap['R']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
+            elif piece == 'Q' or piece == 'q':
+                moveForPiece = generateQueenMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['Q']:
+                    addingscore = mobilityCap['Q']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
+            elif piece == 'K' or piece == 'k':
+                moveForPiece = generateKingMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['K']:
+                    addingscore = mobilityCap['K']
+                if piece.isupper():
+                    score+=addingscore
+                else:
+                    score-=addingscore
     return score
 
 def computePawnStructure(board):
@@ -644,6 +709,27 @@ def isOpponent(piece1,piece2):
     return False
 
 
+# def main():
+#     board = initializeBoard()
+
+#     # 清空并手动设置测试局面
+#     for row in range(8):
+#         for col in range(8):
+#             board[row][col] = '.'
+
+#     # 摆上关键棋子
+#     board[0] = ['r','n','b','q','k','b','n','r']
+#     board[1] = ['p','p','.','p','p','p','p','p']
+#     board[4][3] = 'P'  # 白兵在d4
+#     board[3][2] = 'p'  # 黑兵在c5
+#     board[7] = ['R','N','B','Q','K','B','N','R']
+
+#     piecePositionMap = importPositionMap()
+#     printBoard(board)
+
+#     bestMove = findBestMove(board, 'white', 3, piecePositionMap)
+#     print("👉 Engine's move:", bestMove)
+
 def main():
     board = initializeBoard()
     piecePositionMap = importPositionMap()
@@ -651,7 +737,7 @@ def main():
     numOfSteps = 0
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
-        print(findBestMove(board,color,4,piecePositionMap))
+        print(findBestMove(board,color,3,piecePositionMap))
         move = input("请输入你的走法（例如 e2 e4，或输入 q 退出）：")
         if move.lower() == 'q':
             break
