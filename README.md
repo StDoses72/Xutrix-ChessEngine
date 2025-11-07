@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/07
+
+Add the basic idea of evaluate the mobility potential of a move
+
 2025/11/06
 
 Introduce the idea of mate. Allowing the engine the take mate as the top priority. Adjusted the some of the position json in order to let the engine to do more rational move, to become more like a human player. Take the status of game into the position consideration and introduce the position score cap, so that prevent the problem that the engine will over-consider the position score that leads to the loss of material.
