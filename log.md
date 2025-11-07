@@ -3,7 +3,7 @@ A self-developed chess engine
 
 2025/11/07
 
-Add the basic idea of evaluate the mobility potential of a move
+Finished building the mobility function. Introducing the mobility after one move, and the mobility of the board under the depth required. Also, to prevent the over-dependence on mobility, added the feature of mobility cap for each piece and the mobility coefficient for each piece in order to lock the mobility score in a reasonable scale
 
 2025/11/06
 
