@@ -2,14 +2,30 @@ import string
 import copy
 import json
 import numpy as np
-import chess
-pawnJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\p_table_adjusted.json"
-knightJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\n_table_adjusted.json"
-kingJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\k_table.json"
-queenJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\q_table.json"
-bishopJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\b_table_adjusted.json"
-rookJsonPath = r"D:\Study\ChessEngine\Xustrix\piecePosition\r_table.json"
+import os
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+piece_files = {
+    "p": "p_table_adjusted.json",
+    "n": "n_table_adjusted.json",
+    "b": "b_table_adjusted.json",
+    "r": "r_table.json",
+    "q": "q_table.json",
+    "k": "k_table.json",
+}
+
+piece_paths = {
+    piece: os.path.join(BASE_DIR, "piecePosition", filename)
+    for piece, filename in piece_files.items()
+}
+
+pawnJsonPath   = piece_paths["p"]
+knightJsonPath = piece_paths["n"]
+bishopJsonPath = piece_paths["b"]
+rookJsonPath   = piece_paths["r"]
+queenJsonPath  = piece_paths["q"]
+kingJsonPath   = piece_paths["k"]
 
 
 
@@ -441,10 +457,10 @@ def makeMove(board, fromSquare, toSquare,rights):
 
     return tempboard,rights
     
-def evaluateBoard(board,piecePositionMap):
+def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     material = computeMaterial(board)
     position = computePosition(board,piecePositionMap)
-    mobility = computeMobility(board)
+    mobility = computeMobility(board,moves,mobilityHint=None)
     pawnStructure = computePawnStructure(board)
     kingSafety = computeKingSafety(board)
     totalScore = (
@@ -526,8 +542,23 @@ def computePosition(board,piecePositionMap):
                 score -= piecePositionScore
     return score
 
-def computeMobility(board):
-    return 0
+def computeMobility(board,moves,mobilityHint=None):
+    score = 0
+    
+    if mobilityHint != None:
+        score+= mobilityHint
+    else:#Only use when in indepent evaluation
+        numWhite = len(generateAlllegalMoves(board,'white'))
+        numBlack = len(generateAlllegalMoves(board,'black'))
+        score += numWhite-numBlack
+        #return 0
+    
+    for move in moves:
+        pass
+        
+        
+        
+    return score
 
 def computePawnStructure(board):
     return 0
@@ -541,37 +572,45 @@ def computeKingSafety(board):
 
 
 
-
-def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights):
-    if depth == 0:
-        return evaluateBoard(board,piecePositionMap)
+def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights,isRoot):
     color = 'white' if maximizingPlayer else 'black'
-    moves = generateAlllegalMoves(board,color) 
+    moves = generateAlllegalMoves(board,color)
     if moves == []:
-        return evaluateBoard(board,piecePositionMap)
-    
+        if isKingChecked(board,color):
+            if maximizingPlayer:
+                return -100000+depth
+                
+            else:
+                return 100000-depth
+        else:
+            return 0
+    rootMobility = 0
+    if isRoot:
+        rootMobility = len(moves) if color =='white' else -len(moves)
+        
+    if depth == 0:
+        return evaluateBoard(board,piecePositionMap,moves,mobilityHint=len(moves))
     if maximizingPlayer:
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
-            
             newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap,newrights)
+            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap,newrights,False)
             maxEval = max(eval,maxEval)
             alpha = max(alpha,maxEval)
             if alpha>=beta:
                 break
-        return maxEval
+        return maxEval + rootMobility
     else:
         minEval = float('inf')
         for fromSquare,toSquare in moves:
             
             newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap,newrights)
+            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap,newrights,False)
             minEval = min(eval,minEval)
             beta = min(beta,minEval)
             if beta<=alpha:
                 break
-        return minEval
+        return minEval + rootMobility
         
 def findBestMove(board,color,depth,piecePositionMap):
     bestMove = None
@@ -582,7 +621,7 @@ def findBestMove(board,color,depth,piecePositionMap):
     
     for fromSquare,toSquare in moves:
         newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,newrights)
+        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,newrights,True)
         if maximizingPlayer:
             if bestScore<futureScore:
                 bestScore = futureScore
@@ -608,7 +647,6 @@ def isOpponent(piece1,piece2):
 def main():
     board = initializeBoard()
     piecePositionMap = importPositionMap()
-    
     printBoard(board)
     numOfSteps = 0
     while True:
