@@ -3,7 +3,9 @@ import copy
 import json
 import numpy as np
 import os
-
+from collections import deque
+import random
+import time
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 piece_files = {
@@ -44,6 +46,16 @@ enPassantColor = None
 isWhiteQueenExist = True
 isBlackQueenExist = True
 
+pawnPosition = {'white':set(),
+                'black':set()
+}
+
+
+
+moveHistory = deque()
+
+
+
 
 def algebraicToIndex(sqaure):
     row = int(sqaure[-1])
@@ -72,21 +84,24 @@ def setPiece(board,square,piece):
     board[row][col] = piece
 
 def initializeBoard():
+    global pawnPosition
     board = [['.'] * 8 for _ in range(8)]
     board[0] = ['r','n','b','q','k','b','n','r']
     board[1] = ['p'] * 8
     board[6] = ['P'] * 8
     board[7] = ['R','N','B','Q','K','B','N','R']
+    pawnPosition['white']={'a2','b2','c2','d2','e2','f2','g2','h2'}
+    pawnPosition['black']={'a7','b7','c7','d7','e7','f7','g7','h7'}
     return board
 
-def movePiece(board, fromSquare, toSquare):
-    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor
+def movePiece(board, fromSquare, toSquare):#This is for user to use
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
     setEnPassant = False
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
     piece = board[fromRow][fromCol]
     target = board[toRow][toCol]
-
+    
     if piece == '.':
         print(f"No piece at {fromSquare}!")
         return
@@ -109,7 +124,7 @@ def movePiece(board, fromSquare, toSquare):
                 board[fromRow][toCol] = '.'
             elif piece == 'p' and enPassantColor == 'white':
                 board[fromRow][toCol] = '.'
-                
+        
 
     if target == 'R':
         if toSquare == 'a1':
@@ -131,10 +146,23 @@ def movePiece(board, fromSquare, toSquare):
         isWhiteQueenExist = False
     if target == 'q':
         isBlackQueenExist = False
+        
+    #Officially do the move
     board[toRow][toCol] = piece
     board[fromRow][fromCol] = '.'
-
-
+    
+    #Update pawnPosition
+    if piece == 'P':
+        pawnPosition['white'].remove(fromSquare)
+        pawnPosition['white'].add(toSquare)
+        if toSquare in pawnPosition['black']:
+            pawnPosition['black'].remove(toSquare)
+    elif piece == 'p':
+        pawnPosition['black'].remove(fromSquare)
+        pawnPosition['black'].add(toSquare)
+        if toSquare in pawnPosition['white']:
+            pawnPosition['white'].remove(toSquare)
+    
     if piece == 'P' and toRow == 0:
         board[toRow][toCol] = 'Q'
     elif piece == 'p' and toRow == 7:
@@ -142,17 +170,17 @@ def movePiece(board, fromSquare, toSquare):
 
 
     if piece == 'K':
-        castling_rights['white_king_moved'] = True
-        if fromSquare == 'e1' and toSquare == 'g1':
+        if fromSquare == 'e1' and toSquare == 'g1' and board[7][7] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_h_moved']==False:
             board[7][5] = 'R'; board[7][7] = '.'
-        elif fromSquare == 'e1' and toSquare == 'c1':
+        elif fromSquare == 'e1' and toSquare == 'c1' and board[7][0] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_a_moved']==False:
             board[7][3] = 'R'; board[7][0] = '.'
+        castling_rights['white_king_moved'] = True
     elif piece == 'k':
-        castling_rights['black_king_moved'] = True
-        if fromSquare == 'e8' and toSquare == 'g8':
+        if fromSquare == 'e8' and toSquare == 'g8' and board[0][7] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_h_moved']:
             board[0][5] = 'r'; board[0][7] = '.'
-        elif fromSquare == 'e8' and toSquare == 'c8':
+        elif fromSquare == 'e8' and toSquare == 'c8' and board[0][0] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_a_moved']:
             board[0][3] = 'r'; board[0][0] = '.'
+        castling_rights['black_king_moved'] = True
 
     
     if piece == 'R':
@@ -169,6 +197,272 @@ def movePiece(board, fromSquare, toSquare):
     if not setEnPassant:
         enPassantColor = None
         enPassantSquare = None
+
+
+def doMove(board,fromSquare,toSquare):#This is for engine simulation
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
+    setEnPassant = False
+    fromRow, fromCol = algebraicToIndex(fromSquare)
+    toRow, toCol = algebraicToIndex(toSquare)
+    piece = board[fromRow][fromCol]
+    target = board[toRow][toCol]
+
+    snapshot = {'from':fromSquare,
+                'to':toSquare,
+                'movedPiece':piece,
+                'capturedPiece':target,
+                'rights':copy.deepcopy(castling_rights),
+                'enPassantSquare':enPassantSquare,
+                'enPassantColor':enPassantColor,
+                'pawnPosition':copy.deepcopy(pawnPosition),
+                'isBlackQueenExist':isBlackQueenExist,
+                'isWhiteQueenExist':isWhiteQueenExist
+                }
+    
+
+    
+        
+
+    if target == 'R':
+        if toSquare == 'a1':
+            castling_rights['white_rook_a_moved'] = True
+        elif toSquare == 'h1':
+            castling_rights['white_rook_h_moved'] = True
+    elif target == 'r':
+        if toSquare == 'a8':
+            castling_rights['black_rook_a_moved'] = True
+        elif toSquare == 'h8':
+            castling_rights['black_rook_h_moved'] = True
+
+
+    if target == 'Q':
+        isWhiteQueenExist = False
+    if target == 'q':
+        isBlackQueenExist = False
+        
+        
+    #Enpassant
+    if piece == 'P' or piece == 'p':
+        if abs(fromRow - toRow)==2:
+            if piece == 'P':
+                enPassantColor = 'white'
+                enPassantSquare = indexToAlgebraic(toRow+1,fromCol)
+                setEnPassant = True
+            else:
+                enPassantColor = 'black'
+                enPassantSquare = indexToAlgebraic(toRow-1,fromCol)
+                setEnPassant = True
+                
+        elif toSquare == enPassantSquare:
+            if piece == 'P' and enPassantColor == 'black':
+                pawnPosition['black'].remove(indexToAlgebraic(fromRow,toCol))
+                board[fromRow][toCol] = '.'
+            elif piece == 'p' and enPassantColor == 'white':
+                pawnPosition['white'].remove(indexToAlgebraic(fromRow,toCol))
+                board[fromRow][toCol] = '.'
+                
+                
+    #Officially do the move
+    board[toRow][toCol] = piece
+    board[fromRow][fromCol] = '.'
+    
+
+    
+    #Update pawnPosition
+    if piece == 'P':
+        pawnPosition['white'].remove(fromSquare)
+        pawnPosition['white'].add(toSquare)
+        if toSquare in pawnPosition['black']:
+            pawnPosition['black'].remove(toSquare)
+            
+    elif piece == 'p':
+        pawnPosition['black'].remove(fromSquare)
+        pawnPosition['black'].add(toSquare)
+        if toSquare in pawnPosition['white']:
+            pawnPosition['white'].remove(toSquare)
+    
+    
+    #Do not need to restore in undo
+    if piece == 'P' and toRow == 0:
+        board[toRow][toCol] = 'Q'
+    elif piece == 'p' and toRow == 7:
+        board[toRow][toCol] = 'q'
+
+    #Castling
+    if piece == 'K':
+        if fromSquare == 'e1' and toSquare == 'g1' and board[7][7] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_h_moved']==False:
+            board[7][5] = 'R'; board[7][7] = '.'
+        elif fromSquare == 'e1' and toSquare == 'c1' and board[7][0] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_a_moved']==False:
+            board[7][3] = 'R'; board[7][0] = '.'
+        castling_rights['white_king_moved'] = True
+    elif piece == 'k':
+        if fromSquare == 'e8' and toSquare == 'g8' and board[0][7] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_h_moved']:
+            board[0][5] = 'r'; board[0][7] = '.'
+        elif fromSquare == 'e8' and toSquare == 'c8' and board[0][0] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_a_moved']:
+            board[0][3] = 'r'; board[0][0] = '.'
+        castling_rights['black_king_moved'] = True
+
+    #Global status change
+    if piece == 'R':
+        if fromSquare == 'a1':
+            castling_rights['white_rook_a_moved'] = True
+        elif fromSquare == 'h1':
+            castling_rights['white_rook_h_moved'] = True
+    elif piece == 'r':
+        if fromSquare == 'a8':
+            castling_rights['black_rook_a_moved'] = True
+        elif fromSquare == 'h8':
+            castling_rights['black_rook_h_moved'] = True
+    
+    if not setEnPassant:
+        enPassantColor = None
+        enPassantSquare = None
+    moveHistory.append(snapshot)
+
+
+
+
+
+def undoMove(board):
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
+
+    if len(moveHistory) == 0:
+        return
+    
+    snapshot = moveHistory.pop()
+    fromSq = snapshot["from"]
+    toSq = snapshot["to"]
+    fromRow, fromCol = algebraicToIndex(fromSq)
+    toRow, toCol = algebraicToIndex(toSq)
+
+    movedPiece = snapshot["movedPiece"]
+    capturedPiece = snapshot["capturedPiece"]
+
+    #Restore Enpassant
+    if movedPiece in ('P','p') and toSq == snapshot['enPassantSquare']:
+        if movedPiece == 'P' and snapshot['enPassantColor'] == 'black':
+            board[fromRow][toCol] = 'p'
+        elif movedPiece == 'p' and snapshot['enPassantColor'] == 'white':
+            board[fromRow][toCol] = 'P'
+    
+    #Restore Castling
+    if movedPiece in ('K','k') and abs(fromCol-toCol)==2:
+        if movedPiece == 'K':
+            board[7][7] = 'R'
+            board[7][5] = '.'
+        elif movedPiece == 'k':
+            board[0][7] = 'r'
+            board[0][5] = '.'
+    elif movedPiece in ('K','k') and abs(fromCol-toCol)==3:
+        if movedPiece == 'K':
+            board[7][0] = 'R'
+            board[7][3] = '.'
+        elif movedPiece == 'k':
+            board[0][0] = 'r'
+            board[0][3] = '.'
+
+    # Restore board
+    board[fromRow][fromCol] = movedPiece
+    board[toRow][toCol] = capturedPiece
+    
+    # Restore global variable
+    castling_rights.clear()
+    castling_rights.update(snapshot["rights"])
+
+    enPassantSquare = snapshot["enPassantSquare"]
+    enPassantColor = snapshot["enPassantColor"]
+
+    pawnPosition = copy.deepcopy(snapshot["pawnPosition"])
+
+    isWhiteQueenExist = snapshot["isWhiteQueenExist"]
+    isBlackQueenExist = snapshot["isBlackQueenExist"]
+    
+    
+    
+def makeMove(board, fromSquare, toSquare, rights):
+    """
+    Create a temporary board copy to simulate a move (no global side effects).
+    This version:
+        - Reads enPassant / castling from globals (safe since it doesn't modify them)
+        - Updates only local copies
+        - Returns (newBoard, newRights, localEnPassantSquare, localEnPassantColor)
+    """
+    global enPassantSquare, enPassantColor  # read-only usage
+    newBoard = [row[:] for row in board]
+    newRights = copy.deepcopy(rights)
+
+    # local en passant (isolated from global)
+    localEnPassantSquare = enPassantSquare
+    localEnPassantColor = enPassantColor
+    setEnPassant = False
+
+    fromRow, fromCol = algebraicToIndex(fromSquare)
+    toRow, toCol = algebraicToIndex(toSquare)
+    piece = newBoard[fromRow][fromCol]
+    target = newBoard[toRow][toCol]
+
+    # --- En passant capture logic ---
+    if piece in ('P', 'p'):
+        if abs(fromRow - toRow) == 2:
+            # set potential en passant
+            if piece == 'P':
+                localEnPassantSquare = indexToAlgebraic(toRow + 1, fromCol)
+                localEnPassantColor = 'white'
+            else:
+                localEnPassantSquare = indexToAlgebraic(toRow - 1, fromCol)
+                localEnPassantColor = 'black'
+            setEnPassant = True
+        elif toSquare == enPassantSquare:
+            # handle actual en passant capture
+            if piece == 'P' and enPassantColor == 'black':
+                newBoard[fromRow + 1][toCol] = '.'
+            elif piece == 'p' and enPassantColor == 'white':
+                newBoard[fromRow - 1][toCol] = '.'
+
+    # --- Execute move ---
+    newBoard[toRow][toCol] = piece
+    newBoard[fromRow][fromCol] = '.'
+
+    # --- Promotion ---
+    if piece == 'P' and toRow == 0:
+        newBoard[toRow][toCol] = 'Q'
+    elif piece == 'p' and toRow == 7:
+        newBoard[toRow][toCol] = 'q'
+
+    # --- Castling logic ---
+    if piece == 'K':
+        newRights['white_king_moved'] = True
+        if fromSquare == 'e1' and toSquare == 'g1':
+            newBoard[7][5], newBoard[7][7] = 'R', '.'
+        elif fromSquare == 'e1' and toSquare == 'c1':
+            newBoard[7][3], newBoard[7][0] = 'R', '.'
+    elif piece == 'k':
+        newRights['black_king_moved'] = True
+        if fromSquare == 'e8' and toSquare == 'g8':
+            newBoard[0][5], newBoard[0][7] = 'r', '.'
+        elif fromSquare == 'e8' and toSquare == 'c8':
+            newBoard[0][3], newBoard[0][0] = 'r', '.'
+
+    # --- Update rook move status ---
+    if piece == 'R':
+        if fromSquare == 'a1': newRights['white_rook_a_moved'] = True
+        elif fromSquare == 'h1': newRights['white_rook_h_moved'] = True
+    elif piece == 'r':
+        if fromSquare == 'a8': newRights['black_rook_a_moved'] = True
+        elif fromSquare == 'h8': newRights['black_rook_h_moved'] = True
+
+    # --- Reset local en passant if no new one is set ---
+    if not setEnPassant:
+        localEnPassantSquare = None
+        localEnPassantColor = None
+
+    return newBoard, newRights, localEnPassantSquare, localEnPassantColor
+    
+    
+    
+    
+    
+    
     
     
     
@@ -329,6 +623,7 @@ def generateQueenMoves(board,square):
     
     
 def generateKingMoves(board, square):
+    global castling_rights
     potentialMove = []
     fromRow, fromCol = algebraicToIndex(square)
     piece = board[fromRow][fromCol]
@@ -442,79 +737,14 @@ def generateAlllegalMoves(board, color):
             for toSquare in moveList:
                 PseudoMoves.append((square,toSquare))
     for fromSquare,toSquare in PseudoMoves:
-        newboard, _ = makeMove(board,fromSquare,toSquare,copy.deepcopy(castling_rights))
+        newboard,_,_,_ = makeMove(board,fromSquare,toSquare,copy.deepcopy(castling_rights))
         if not isKingChecked(newboard,color):
             legalMoves.append((fromSquare,toSquare))
+        
     return legalMoves
 
 
-def makeMove(board, fromSquare, toSquare,rights):
-    global enPassantColor,enPassantSquare
-    setEnPassant = False
-    rights = copy.deepcopy(rights)
-    tempboard = [row[:] for row in board]
-    fromRow, fromCol = algebraicToIndex(fromSquare)
-    toRow, toCol = algebraicToIndex(toSquare)
-    piece = tempboard[fromRow][fromCol]
 
-    tempboard[toRow][toCol] = piece
-    tempboard[fromRow][fromCol] = '.'
-
-    if piece == 'P' or piece == 'p':
-        if abs(fromRow - toRow)==2:
-            if piece == 'P':
-                enPassantColor = 'white'
-                enPassantSquare = indexToAlgebraic(toRow+1,fromCol)
-                setEnPassant = True
-            else:
-                enPassantColor = 'black'
-                enPassantSquare = indexToAlgebraic(toRow-1,fromCol)
-                setEnPassant = True
-        elif toSquare == enPassantSquare:
-            if piece == 'P' and enPassantColor == 'black':
-                board[fromRow][toCol] = '.'
-            elif piece == 'p' and enPassantColor == 'white':
-                board[fromRow][toCol] = '.'
-    
-    if piece == 'P' and toRow == 0:
-        tempboard[toRow][toCol] = 'Q'
-    elif piece == 'p' and toRow == 7:
-        tempboard[toRow][toCol] = 'q'
-
-
-    if piece == 'K':
-        rights['white_king_moved'] = True
-        if fromSquare == 'e1' and toSquare == 'g1':  # 短易位
-            tempboard[7][5] = 'R'
-            tempboard[7][7] = '.'
-        elif fromSquare == 'e1' and toSquare == 'c1':  # 长易位
-            tempboard[7][3] = 'R'
-            tempboard[7][0] = '.'
-    elif piece == 'k':
-        rights['black_king_moved'] = True
-        if fromSquare == 'e8' and toSquare == 'g8':
-            tempboard[0][5] = 'r'
-            tempboard[0][7] = '.'
-        elif fromSquare == 'e8' and toSquare == 'c8':
-            tempboard[0][3] = 'r'
-            tempboard[0][0] = '.'
-
-
-    if piece == 'R':
-        if fromSquare == 'a1':
-            rights['white_rook_a_moved'] = True
-        elif fromSquare == 'h1':
-            rights['white_rook_h_moved'] = True
-    elif piece == 'r':
-        if fromSquare == 'a8':
-            rights['black_rook_a_moved'] = True
-        elif fromSquare == 'h8':
-            rights['black_rook_h_moved'] = True
-    
-    if not setEnPassant:
-        enPassantSquare = None
-        enPassantColor = None
-    return tempboard,rights
     
 def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     material = computeMaterial(board)
@@ -522,13 +752,8 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     mobility = computeMobility(board,moves,mobilityHint=None)
     pawnStructure = computePawnStructure(board)
     kingSafety = computeKingSafety(board)
-    totalScore = (
-        material * 1.0 +
-        position * 0.8 +
-        mobility * 0.1 +
-        pawnStructure * 0.5 +
-        kingSafety * 0.7
-    )
+    centerControl = computeCenterControl(board)
+    totalScore = (material * 1.0 + position * 0.8 + mobility * 0.1 + pawnStructure * 0.5 + kingSafety * 0.7 + centerControl)
     totalScore += 20
     return totalScore
 
@@ -690,13 +915,15 @@ def computePawnStructure(board):
 def computeKingSafety(board):
     return 0
 
+def computeCenterControl(board):
+    return 0
 
 
 
 
 
 
-def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights,isRoot):
+def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
     color = 'white' if maximizingPlayer else 'black'
     moves = generateAlllegalMoves(board,color)
     if moves == []:
@@ -708,6 +935,7 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights,isRo
                 return 100000-depth
         else:
             return 0
+        
     rootMobility = 0
     if isRoot:
         rootMobility = len(moves) if color =='white' else -len(moves)
@@ -717,8 +945,9 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights,isRo
     if maximizingPlayer:
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
-            newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-            eval = minimax(newboard,depth-1,alpha,beta,False,piecePositionMap,newrights,False)
+            doMove(board,fromSquare,toSquare)
+            eval = minimax(board,depth-1,alpha,beta,False,piecePositionMap,False)
+            undoMove(board)
             maxEval = max(eval,maxEval)
             alpha = max(alpha,maxEval)
             if alpha>=beta:
@@ -728,8 +957,9 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,rights,isRo
         minEval = float('inf')
         for fromSquare,toSquare in moves:
             
-            newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-            eval = minimax(newboard,depth-1,alpha,beta,True,piecePositionMap,newrights,False)
+            doMove(board,fromSquare,toSquare)
+            eval = minimax(board,depth-1,alpha,beta,True,piecePositionMap,False)
+            undoMove(board)
             minEval = min(eval,minEval)
             beta = min(beta,minEval)
             if beta<=alpha:
@@ -741,11 +971,11 @@ def findBestMove(board,color,depth,piecePositionMap):
     maximizingPlayer = True if color == 'white' else False
     bestScore = -float('inf') if maximizingPlayer else float('inf')
     moves = generateAlllegalMoves(board,color)
-    rights = copy.deepcopy(castling_rights)
     
     for fromSquare,toSquare in moves:
-        newboard,newrights = makeMove(board,fromSquare,toSquare,rights)
-        futureScore = minimax(newboard,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,newrights,True)
+        doMove(board,fromSquare,toSquare)
+        futureScore = minimax(board,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,True)
+        undoMove(board)
         if maximizingPlayer:
             if bestScore<futureScore:
                 bestScore = futureScore
@@ -777,7 +1007,11 @@ def main():
     numOfSteps = 0
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
+        startTime = time.time()
         print(findBestMove(board,color,3,piecePositionMap))
+        endTime = time.time()
+        diff = endTime-startTime
+        print(diff)
         move = input("请输入你的走法（例如 e2 e4，或输入 q 退出）：")
         if move.lower() == 'q':
             break
@@ -785,157 +1019,212 @@ def main():
             fromSq, toSq = move.split()
             movePiece(board, fromSq, toSq)
             printBoard(board)
-            if enPassantSquare !=None:
-                print(enPassantSquare)
             numOfSteps+=1
             
         except:
             print("输入格式错误！请用类似 e2 e4 的形式。")
             
+
 main()
 
 
-# def testEnPassant_All():
-#     global enPassantSquare, enPassantColor
 
-#     print("\n=== Running Comprehensive En Passant Test Suite ===\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def testDoUndoConsistency(board, numTests=100):
+#     """
+#     Test whether doMove() and undoMove() perfectly restore board & state.
+#     Runs random legal moves numTests times.
+#     """
+#     global castling_rights, enPassantSquare, enPassantColor
+#     global pawnPosition, isWhiteQueenExist, isBlackQueenExist, moveHistory
+
+#     print("\n=== Running doMove / undoMove Consistency Test ===\n")
+
+#     # Backup original globals
+#     original_castling = copy.deepcopy(castling_rights)
+#     original_enpassant_sq = enPassantSquare
+#     original_enpassant_color = enPassantColor
+#     original_pawnPosition = copy.deepcopy(pawnPosition)
+#     original_whiteQ = isWhiteQueenExist
+#     original_blackQ = isBlackQueenExist
+
 #     passed, failed = 0, 0
 
-#     # -------------------------------------------------
-#     # A. White can capture en passant (e5xd6 e.p.)
-#     # -------------------------------------------------
-#     enPassantSquare = "d6"
-#     enPassantColor = "black"
-#     boardA = [['.']*8 for _ in range(8)]
-#     boardA[3][3] = 'p'  # d5 black pawn
-#     boardA[3][4] = 'P'  # e5 white pawn
+#     for i in range(numTests):
+#         # 复制当前状态（因为每次测试都要回到同一起点）
+#         testBoard = copy.deepcopy(board)
 
-#     print("Test A: White can capture en passant (e5xd6)")
-#     moves = generateAlllegalMoves(boardA, 'white')
-#     if ('e5', 'd6') in moves:
-#         print("✅ Passed: e5xd6 found in legal moves.")
-#         passed += 1
-#     else:
-#         print("❌ Failed: e5xd6 missing.")
-#         failed += 1
+#         # 获取所有合法走法
+#         color = "white" if i % 2 == 0 else "black"
+#         moves = generateAlllegalMoves(testBoard, color)
+#         if not moves:
+#             continue
+#         move = random.choice(moves)
+#         fromSq, toSq = move
 
-#     # -------------------------------------------------
-#     # B. Black can capture en passant (f4xe3 e.p.)
-#     # -------------------------------------------------
-#     enPassantSquare = "e3"
-#     enPassantColor = "white"
-#     boardB = [['.']*8 for _ in range(8)]
-#     boardB[4][4] = 'P'  # e4 white pawn
-#     boardB[4][5] = 'p'  # f4 black pawn
+#         # 保存所有初始状态快照
+#         pre_state = {
+#             "board": copy.deepcopy(testBoard),
+#             "castling_rights": copy.deepcopy(castling_rights),
+#             "enPassantSquare": enPassantSquare,
+#             "enPassantColor": enPassantColor,
+#             "pawnPosition": copy.deepcopy(pawnPosition),
+#             "isWhiteQueenExist": isWhiteQueenExist,
+#             "isBlackQueenExist": isBlackQueenExist,
+#         }
 
-#     print("\nTest B: Black can capture en passant (f4xe3)")
-#     moves = generateAlllegalMoves(boardB, 'black')
-#     if ('f4', 'e3') in moves:
-#         print("✅ Passed: f4xe3 found in legal moves.")
-#         passed += 1
-#     else:
-#         print("❌ Failed: f4xe3 missing.")
-#         failed += 1
+#         # 执行并回退
+#         doMove(testBoard, fromSq, toSq)
+#         undoMove(testBoard)
 
-#     # -------------------------------------------------
-#     # C. En Passant expired (no longer legal)
-#     # -------------------------------------------------
+#         # 检查恢复一致性
+#         if (
+#             testBoard == pre_state["board"]
+#             and castling_rights == pre_state["castling_rights"]
+#             and enPassantSquare == pre_state["enPassantSquare"]
+#             and enPassantColor == pre_state["enPassantColor"]
+#             and pawnPosition == pre_state["pawnPosition"]
+#             and isWhiteQueenExist == pre_state["isWhiteQueenExist"]
+#             and isBlackQueenExist == pre_state["isBlackQueenExist"]
+#         ):
+#             passed += 1
+#         else:
+#             failed += 1
+#             print(f"❌ Failed at test #{i+1} ({fromSq}->{toSq})")
+#             printBoard(testBoard)
+#             print("Expected:")
+#             printBoard(pre_state["board"])
+#             break
+
+#     # 恢复原始全局状态
+#     castling_rights = copy.deepcopy(original_castling)
+#     enPassantSquare = original_enpassant_sq
+#     enPassantColor = original_enpassant_color
+#     pawnPosition = copy.deepcopy(original_pawnPosition)
+#     isWhiteQueenExist = original_whiteQ
+#     isBlackQueenExist = original_blackQ
+
+#     print(f"\n🎯 Consistency Test Complete: {passed} passed, {failed} failed.\n")
+    
+# def testSpecialMoveUndo(board):
+#     print("\n=== Running Special Move Undo Consistency Test ===\n")
+#     passed, failed = 0, 0
+
+#     # ------------------------------
+#     # 1️⃣ EN PASSANT
+#     # ------------------------------
+#     print("Test 1: En Passant do/undo consistency")
+#     initializeBoard()
+#     # Setup custom board
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[3][4] = 'p'   # black pawn on e5
+#     board[6][3] = 'P'   # white pawn on d2
+
+#     global enPassantSquare, enPassantColor, moveHistory, pawnPosition
 #     enPassantSquare = None
 #     enPassantColor = None
-#     boardC = [['.']*8 for _ in range(8)]
-#     boardC[3][3] = 'p'  # d5 black pawn
-#     boardC[3][4] = 'P'  # e5 white pawn
+#     moveHistory.clear()
 
-#     print("\nTest C: En Passant expired (should not allow e5xd6)")
-#     moves = generateAlllegalMoves(boardC, 'white')
-#     if ('e5', 'd6') not in moves:
-#         print("✅ Passed: no en passant allowed.")
+#     # ✅ 同步 pawnPosition
+#     pawnPosition['white'] = {'d2'}
+#     pawnPosition['black'] = {'e5'}
+
+#     # White moves d2->d4 (en passant target)
+#     doMove(board, 'd2', 'd4')
+#     # Black performs en passant e5xd4
+#     doMove(board, 'e5', 'd4')
+#     undoMove(board)
+#     undoMove(board)
+
+#     init_board = [['.'] * 8 for _ in range(8)]
+#     init_board[3][4] = 'p'
+#     init_board[6][3] = 'P'
+
+#     if board == init_board:
+#         print("✅ Passed: En passant restored correctly.")
 #         passed += 1
 #     else:
-#         print("❌ Failed: illegal e.p. move still exists.")
+#         print("❌ Failed: En passant mismatch after undo.")
 #         failed += 1
 
-#     # -------------------------------------------------
-#     # D. En Passant removes captured pawn correctly
-#     # -------------------------------------------------
-#     enPassantSquare = "d6"
-#     enPassantColor = "black"
-#     boardD = [['.']*8 for _ in range(8)]
-#     boardD[3][3] = 'p'  # d5 black pawn
-#     boardD[3][4] = 'P'  # e5 white pawn
+#     # ------------------------------
+#     # 2️⃣ CASTLING
+#     # ------------------------------
+#     print("\nTest 2: Castling do/undo consistency")
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[7][4] = 'K'
+#     board[7][7] = 'R'
+#     global castling_rights
+#     castling_rights = {
+#         'white_king_moved': False,
+#         'white_rook_a_moved': False,
+#         'white_rook_h_moved': False,
+#         'black_king_moved': False,
+#         'black_rook_a_moved': False,
+#         'black_rook_h_moved': False
+#     }
+#     moveHistory.clear()
 
-#     print("\nTest D: Ghost pawn removed after e5xd6")
-#     movePiece(boardD, "e5", "d6")
-#     d5_row, d5_col = algebraicToIndex("d5")
-#     d6_row, d6_col = algebraicToIndex("d6")
-#     if boardD[d5_row][d5_col] == '.' and boardD[d6_row][d6_col] == 'P':
-#         print("✅ Passed: d5 empty and d6 has white pawn.")
+#     doMove(board, 'e1', 'g1')  # short castle
+#     undoMove(board)
+
+#     if board[7][4] == 'K' and board[7][7] == 'R' and board[7][5] == '.' and board[7][6] == '.':
+#         print("✅ Passed: Castling restored correctly.")
 #         passed += 1
 #     else:
-#         print("❌ Failed: ghost pawn not cleared or pawn misplaced.")
+#         print("❌ Failed: Castling not restored properly.")
 #         failed += 1
 
-#     # -------------------------------------------------
-#     # E1. Edge-file en passant (a5×b6)
-#     # -------------------------------------------------
-#     enPassantSquare = "b6"
-#     enPassantColor = "black"
-#     boardE1 = [['.']*8 for _ in range(8)]
-#     boardE1[3][0] = 'P'  # a5 white pawn
-#     boardE1[3][1] = 'p'  # b5 black pawn
+#     # ------------------------------
+#     # 3️⃣ PROMOTION
+#     # ------------------------------
+#     print("\nTest 3: Promotion do/undo consistency")
+#     board = [['.'] * 8 for _ in range(8)]
+#     board[1][0] = 'P'  # White pawn on a7
+#     moveHistory.clear()
 
-#     print("\nTest E1: White edge-file en passant (a5xb6)")
-#     moves = generateAlllegalMoves(boardE1, 'white')
-#     if ('a5', 'b6') in moves:
-#         print("✅ Passed: a5xb6 found in legal moves.")
+#     # ✅ 同步 pawnPosition
+#     pawnPosition['white'] = {'a7'}
+#     pawnPosition['black'] = set()
+
+#     doMove(board, 'a7', 'a8')  # promote
+#     undoMove(board)
+
+#     if board[1][0] == 'P' and board[0][0] == '.':
+#         print("✅ Passed: Promotion restored correctly.")
 #         passed += 1
 #     else:
-#         print("❌ Failed: a5xb6 missing.")
+#         print("❌ Failed: Promotion not restored properly.")
 #         failed += 1
 
-#     # -------------------------------------------------
-#     # E2. Black edge-file en passant (h5×g4)
-#     # -------------------------------------------------
-#     enPassantSquare = "g4"
-#     enPassantColor = "white"
-#     boardE2 = [['.']*8 for _ in range(8)]
-#     boardE2[4][6] = 'P'  # g4 white pawn
-#     boardE2[3][7] = 'p'  # h5 black pawn
-
-#     print("\nTest E2: Black edge-file en passant (h5xg4)")
-#     moves = generateAlllegalMoves(boardE2, 'black')
-#     if ('h5', 'g4') in moves:
-#         print("✅ Passed: h5xg4 found in legal moves.")
-#         passed += 1
-#     else:
-#         print("❌ Failed: h5xg4 missing.")
-#         failed += 1
-
-#     # -------------------------------------------------
-#     # F. Wrong color marker (should forbid e.p.)
-#     # -------------------------------------------------
-#     enPassantSquare = "e3"
-#     enPassantColor = "black"  # wrong color
-#     boardF = [['.']*8 for _ in range(8)]
-#     boardF[4][4] = 'P'  # e4 white pawn
-#     boardF[4][5] = 'p'  # f4 black pawn
-
-#     print("\nTest F: Wrong color marker (f4xe3 should NOT appear)")
-#     moves = generateAlllegalMoves(boardF, 'black')
-#     if ('f4', 'e3') not in moves:
-#         print("✅ Passed: e.p. correctly forbidden due to color mismatch.")
-#         passed += 1
-#     else:
-#         print("❌ Failed: wrong-color e.p. still allowed.")
-#         failed += 1
-
-#     # -------------------------------------------------
-#     print(f"\n🎯 En Passant Tests Complete: {passed} passed, {failed} failed.\n")
+#     # ------------------------------
+#     print(f"\n🎯 Special Move Undo Tests Complete: {passed} passed, {failed} failed.\n")
 
 
-# # Run
-# if __name__ == "__main__":
-#     testEnPassant_All()
+
+
+
 
 
 
@@ -1107,3 +1396,140 @@ main()
 #     print("Actual:  ", generatePawnMoves(board, 'd7'))
 
 #     print("\n=== Test Completed ===")
+
+# def testEnPassant_All():
+#     global enPassantSquare, enPassantColor
+
+#     print("\n=== Running Comprehensive En Passant Test Suite ===\n")
+#     passed, failed = 0, 0
+
+#     # -------------------------------------------------
+#     # A. White can capture en passant (e5xd6 e.p.)
+#     # -------------------------------------------------
+#     enPassantSquare = "d6"
+#     enPassantColor = "black"
+#     boardA = [['.']*8 for _ in range(8)]
+#     boardA[3][3] = 'p'  # d5 black pawn
+#     boardA[3][4] = 'P'  # e5 white pawn
+
+#     print("Test A: White can capture en passant (e5xd6)")
+#     moves = generateAlllegalMoves(boardA, 'white')
+#     if ('e5', 'd6') in moves:
+#         print("✅ Passed: e5xd6 found in legal moves.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: e5xd6 missing.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # B. Black can capture en passant (f4xe3 e.p.)
+#     # -------------------------------------------------
+#     enPassantSquare = "e3"
+#     enPassantColor = "white"
+#     boardB = [['.']*8 for _ in range(8)]
+#     boardB[4][4] = 'P'  # e4 white pawn
+#     boardB[4][5] = 'p'  # f4 black pawn
+
+#     print("\nTest B: Black can capture en passant (f4xe3)")
+#     moves = generateAlllegalMoves(boardB, 'black')
+#     if ('f4', 'e3') in moves:
+#         print("✅ Passed: f4xe3 found in legal moves.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: f4xe3 missing.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # C. En Passant expired (no longer legal)
+#     # -------------------------------------------------
+#     enPassantSquare = None
+#     enPassantColor = None
+#     boardC = [['.']*8 for _ in range(8)]
+#     boardC[3][3] = 'p'  # d5 black pawn
+#     boardC[3][4] = 'P'  # e5 white pawn
+
+#     print("\nTest C: En Passant expired (should not allow e5xd6)")
+#     moves = generateAlllegalMoves(boardC, 'white')
+#     if ('e5', 'd6') not in moves:
+#         print("✅ Passed: no en passant allowed.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: illegal e.p. move still exists.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # D. En Passant removes captured pawn correctly
+#     # -------------------------------------------------
+#     enPassantSquare = "d6"
+#     enPassantColor = "black"
+#     boardD = [['.']*8 for _ in range(8)]
+#     boardD[3][3] = 'p'  # d5 black pawn
+#     boardD[3][4] = 'P'  # e5 white pawn
+
+#     print("\nTest D: Ghost pawn removed after e5xd6")
+#     movePiece(boardD, "e5", "d6")
+#     d5_row, d5_col = algebraicToIndex("d5")
+#     d6_row, d6_col = algebraicToIndex("d6")
+#     if boardD[d5_row][d5_col] == '.' and boardD[d6_row][d6_col] == 'P':
+#         print("✅ Passed: d5 empty and d6 has white pawn.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: ghost pawn not cleared or pawn misplaced.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # E1. Edge-file en passant (a5×b6)
+#     # -------------------------------------------------
+#     enPassantSquare = "b6"
+#     enPassantColor = "black"
+#     boardE1 = [['.']*8 for _ in range(8)]
+#     boardE1[3][0] = 'P'  # a5 white pawn
+#     boardE1[3][1] = 'p'  # b5 black pawn
+
+#     print("\nTest E1: White edge-file en passant (a5xb6)")
+#     moves = generateAlllegalMoves(boardE1, 'white')
+#     if ('a5', 'b6') in moves:
+#         print("✅ Passed: a5xb6 found in legal moves.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: a5xb6 missing.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # E2. Black edge-file en passant (h5×g4)
+#     # -------------------------------------------------
+#     enPassantSquare = "g4"
+#     enPassantColor = "white"
+#     boardE2 = [['.']*8 for _ in range(8)]
+#     boardE2[4][6] = 'P'  # g4 white pawn
+#     boardE2[3][7] = 'p'  # h5 black pawn
+
+#     print("\nTest E2: Black edge-file en passant (h5xg4)")
+#     moves = generateAlllegalMoves(boardE2, 'black')
+#     if ('h5', 'g4') in moves:
+#         print("✅ Passed: h5xg4 found in legal moves.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: h5xg4 missing.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     # F. Wrong color marker (should forbid e.p.)
+#     # -------------------------------------------------
+#     enPassantSquare = "e3"
+#     enPassantColor = "black"  # wrong color
+#     boardF = [['.']*8 for _ in range(8)]
+#     boardF[4][4] = 'P'  # e4 white pawn
+#     boardF[4][5] = 'p'  # f4 black pawn
+
+#     print("\nTest F: Wrong color marker (f4xe3 should NOT appear)")
+#     moves = generateAlllegalMoves(boardF, 'black')
+#     if ('f4', 'e3') not in moves:
+#         print("✅ Passed: e.p. correctly forbidden due to color mismatch.")
+#         passed += 1
+#     else:
+#         print("❌ Failed: wrong-color e.p. still allowed.")
+#         failed += 1
+
+#     # -------------------------------------------------
+#     print(f"\n🎯 En Passant Tests Complete: {passed} passed, {failed} failed.\n")
