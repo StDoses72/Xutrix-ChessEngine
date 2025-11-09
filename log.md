@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/09
+
+Update the method of minimax. Choose the method of do a move, take snapshot, push the snapshot into stack, and undo the move by pop snapshot out from the stack to restore the board as well as the global variables.
+
 2025/11/07
 
 Finished building the mobility function. Introducing the mobility after one move, and the mobility of the board under the depth required. Also, to prevent the over-dependence on mobility, added the feature of mobility cap for each piece and the mobility coefficient for each piece in order to lock the mobility score in a reasonable scale. Add the idea of enpassant into the game
