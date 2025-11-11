@@ -1064,7 +1064,7 @@ def main():
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
         startTime = time.time()
-        print(findBestMove(board,color,3,piecePositionMap))
+        print(findBestMove(board,color,4,piecePositionMap))
         endTime = time.time()
         diff = endTime-startTime
         print(diff)
