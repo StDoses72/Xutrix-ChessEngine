@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/10
+
+Updated the function of isSquareAttacked by using Cython. But the problem is that the cython seems that can not be used in python 3.13
+
 2025/11/09
 
 Update the method of minimax. Choose the method of do a move, take snapshot, push the snapshot into stack, and undo the move by pop snapshot out from the stack to restore the board as well as the global variables.
