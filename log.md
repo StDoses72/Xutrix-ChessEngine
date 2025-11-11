@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/11
+
+Fixed the potential bug that under the minimax, the global variable of Rook is moved will be leaked
+
 2025/11/10
 
 Updated the function of isSquareAttacked by using Cython. But the problem is that the cython seems that can not be used in python 3.13. Can use setupenv.bat and open.bat to set up environment for python 3.12.x and open the engine
