@@ -217,7 +217,8 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
                 'enPassantColor':enPassantColor,
                 'pawnPosition':copy.deepcopy(pawnPosition),
                 'isBlackQueenExist':isBlackQueenExist,
-                'isWhiteQueenExist':isWhiteQueenExist
+                'isWhiteQueenExist':isWhiteQueenExist,
+                'special': None
                 }
     
 
@@ -292,14 +293,19 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
     #Castling
     if piece == 'K':
         if fromSquare == 'e1' and toSquare == 'g1' and board[7][7] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_h_moved']==False:
+            snapshot['special'] = 'wk'
             board[7][5] = 'R'; board[7][7] = '.'
+            
         elif fromSquare == 'e1' and toSquare == 'c1' and board[7][0] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_a_moved']==False:
+            snapshot['special'] = 'wq'
             board[7][3] = 'R'; board[7][0] = '.'
         castling_rights['white_king_moved'] = True
     elif piece == 'k':
         if fromSquare == 'e8' and toSquare == 'g8' and board[0][7] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_h_moved']:
+            snapshot['special'] = 'bk'
             board[0][5] = 'r'; board[0][7] = '.'
         elif fromSquare == 'e8' and toSquare == 'c8' and board[0][0] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_a_moved']:
+            snapshot['special'] = 'bq'
             board[0][3] = 'r'; board[0][0] = '.'
         castling_rights['black_king_moved'] = True
 
@@ -347,20 +353,31 @@ def undoMove(board):
             board[fromRow][toCol] = 'P'
     
     #Restore Castling
-    if movedPiece in ('K','k') and abs(fromCol-toCol)==2:
-        if movedPiece == 'K':
-            board[7][7] = 'R'
-            board[7][5] = '.'
-        elif movedPiece == 'k':
-            board[0][7] = 'r'
-            board[0][5] = '.'
-    elif movedPiece in ('K','k') and abs(fromCol-toCol)==3:
-        if movedPiece == 'K':
-            board[7][0] = 'R'
-            board[7][3] = '.'
-        elif movedPiece == 'k':
-            board[0][0] = 'r'
-            board[0][3] = '.'
+    sp = snapshot['special']
+
+    if sp == 'wk':
+        board[7][4] = 'K'
+        board[7][6] = '.'
+        board[7][7] = 'R'
+        board[7][5] = '.'
+
+    elif sp == 'wq':
+        board[7][4] = 'K'
+        board[7][2] = '.'
+        board[7][0] = 'R'
+        board[7][3] = '.'
+
+    elif sp == 'bk':
+        board[0][4] = 'k'
+        board[0][6] = '.'
+        board[0][7] = 'r'
+        board[0][5] = '.'
+
+    elif sp == 'bq':
+        board[0][4] = 'k'
+        board[0][2] = '.'
+        board[0][0] = 'r'
+        board[0][3] = '.'
 
     # Restore board
     board[fromRow][fromCol] = movedPiece
@@ -389,7 +406,7 @@ def makeMove(board, fromSquare, toSquare, rights):
         - Returns (newBoard, newRights, localEnPassantSquare, localEnPassantColor)
     """
     global enPassantSquare, enPassantColor  # read-only usage
-    newBoard = [row[:] for row in board]
+    newBoard = copy.deepcopy(board)
     newRights = copy.deepcopy(rights)
 
     # local en passant (isolated from global)
@@ -732,9 +749,10 @@ def generateAlllegalMoves(board, color):
             for toSquare in moveList:
                 PseudoMoves.append((square,toSquare))
     for fromSquare,toSquare in PseudoMoves:
-        newboard,_,_,_ = makeMove(board,fromSquare,toSquare,copy.deepcopy(castling_rights))
-        if not isKingChecked(newboard,color):
+        doMove(board,fromSquare,toSquare)
+        if not isKingChecked(board,color):
             legalMoves.append((fromSquare,toSquare))
+        undoMove(board)
         
     return legalMoves
 
@@ -748,7 +766,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     pawnStructure = computePawnStructure(board)
     kingSafety = computeKingSafety(board)
     centerControl = computeCenterControl(board)
-    totalScore = (material * 1.0 + position * 0.8 + mobility * 0.1 + pawnStructure * 0.5 + kingSafety * 0.7 + centerControl)
+    totalScore = (material * 1.0 + position * 0.8 + mobility * 0.2 + pawnStructure * 0.5 + kingSafety * 0.7 + centerControl)
     totalScore += 20
     return totalScore
 
@@ -1064,7 +1082,7 @@ def main():
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
         startTime = time.time()
-        print(findBestMove(board,color,4,piecePositionMap))
+        print(findBestMove(board,color,3,piecePositionMap))
         endTime = time.time()
         diff = endTime-startTime
         print(diff)
