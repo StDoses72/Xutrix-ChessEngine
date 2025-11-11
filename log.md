@@ -3,7 +3,7 @@ A self-developed chess engine
 
 2025/11/10
 
-Updated the function of isSquareAttacked by using Cython. But the problem is that the cython seems that can not be used in python 3.13
+Updated the function of isSquareAttacked by using Cython. But the problem is that the cython seems that can not be used in python 3.13. Can use setupenv.bat and open.bat to set up environment for python 3.12.x and open the engine
 
 2025/11/09
 
