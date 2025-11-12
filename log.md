@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/12
+
+Combined the evaluateBoard from mulitiple function into one. Finished the development of computing for pawn structure, by examining the idea of double pawn, pawn chain and isoloated pawn
+
 2025/11/11
 
 Fixed the potential bug that under the minimax, the global variable of Rook is moved will be leaked
