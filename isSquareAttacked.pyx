@@ -20,6 +20,8 @@ rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))
 cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
     cdef int dr, dc, r, c
     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
+    cdef int numOfWhiteAttack, numOfBlackAttack
+    cdef float whiteControlScore, blackControlScore
 
 
     if byColor == 'white':

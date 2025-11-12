@@ -52,6 +52,17 @@ pawnPosition = {'white':set(),
 }
 
 
+centerWeights = np.array([
+    [0, 0, 1, 1, 1, 1, 0, 0],
+    [0, 1, 2, 2, 2, 2, 1, 0],
+    [1, 2, 3, 3, 3, 3, 2, 1],
+    [1, 2, 3, 4, 4, 3, 2, 1],
+    [1, 2, 3, 4, 4, 3, 2, 1],
+    [1, 2, 3, 3, 3, 3, 2, 1],
+    [0, 1, 2, 2, 2, 2, 1, 0],
+    [0, 0, 1, 1, 1, 1, 0, 0]
+])
+
 
 moveHistory = deque()
 
@@ -215,7 +226,7 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
                 'rights':copy.deepcopy(castling_rights),
                 'enPassantSquare':enPassantSquare,
                 'enPassantColor':enPassantColor,
-                'pawnPosition':copy.deepcopy(pawnPosition),
+                'pawnPosition':{'white':pawnPosition['white'].copy(),'black':pawnPosition['black'].copy()},
                 'isBlackQueenExist':isBlackQueenExist,
                 'isWhiteQueenExist':isWhiteQueenExist,
                 'special': None
@@ -390,91 +401,15 @@ def undoMove(board):
     enPassantSquare = snapshot["enPassantSquare"]
     enPassantColor = snapshot["enPassantColor"]
 
-    pawnPosition = copy.deepcopy(snapshot["pawnPosition"])
+    pawnPosition['white'] = snapshot['pawnPosition']['white'].copy()
+    pawnPosition['black'] = snapshot['pawnPosition']['black'].copy()
 
     isWhiteQueenExist = snapshot["isWhiteQueenExist"]
     isBlackQueenExist = snapshot["isBlackQueenExist"]
     
     
     
-def makeMove(board, fromSquare, toSquare, rights):
-    """
-    Create a temporary board copy to simulate a move (no global side effects).
-    This version:
-        - Reads enPassant / castling from globals (safe since it doesn't modify them)
-        - Updates only local copies
-        - Returns (newBoard, newRights, localEnPassantSquare, localEnPassantColor)
-    """
-    global enPassantSquare, enPassantColor  # read-only usage
-    newBoard = copy.deepcopy(board)
-    newRights = copy.deepcopy(rights)
 
-    # local en passant (isolated from global)
-    localEnPassantSquare = enPassantSquare
-    localEnPassantColor = enPassantColor
-    setEnPassant = False
-
-    fromRow, fromCol = algebraicToIndex(fromSquare)
-    toRow, toCol = algebraicToIndex(toSquare)
-    piece = newBoard[fromRow][fromCol]
-    target = newBoard[toRow][toCol]
-
-    # --- En passant capture logic ---
-    if piece in ('P', 'p'):
-        if abs(fromRow - toRow) == 2:
-            # set potential en passant
-            if piece == 'P':
-                localEnPassantSquare = indexToAlgebraic(toRow + 1, fromCol)
-                localEnPassantColor = 'white'
-            else:
-                localEnPassantSquare = indexToAlgebraic(toRow - 1, fromCol)
-                localEnPassantColor = 'black'
-            setEnPassant = True
-        elif toSquare == enPassantSquare:
-            # handle actual en passant capture
-            if piece == 'P' and enPassantColor == 'black':
-                newBoard[fromRow + 1][toCol] = '.'
-            elif piece == 'p' and enPassantColor == 'white':
-                newBoard[fromRow - 1][toCol] = '.'
-
-    # --- Execute move ---
-    newBoard[toRow][toCol] = piece
-    newBoard[fromRow][fromCol] = '.'
-
-    # --- Promotion ---
-    if piece == 'P' and toRow == 0:
-        newBoard[toRow][toCol] = 'Q'
-    elif piece == 'p' and toRow == 7:
-        newBoard[toRow][toCol] = 'q'
-
-    # --- Castling logic ---
-    if piece == 'K':
-        newRights['white_king_moved'] = True
-        if fromSquare == 'e1' and toSquare == 'g1':
-            newBoard[7][5], newBoard[7][7] = 'R', '.'
-        elif fromSquare == 'e1' and toSquare == 'c1':
-            newBoard[7][3], newBoard[7][0] = 'R', '.'
-    elif piece == 'k':
-        newRights['black_king_moved'] = True
-        if fromSquare == 'e8' and toSquare == 'g8':
-            newBoard[0][5], newBoard[0][7] = 'r', '.'
-        elif fromSquare == 'e8' and toSquare == 'c8':
-            newBoard[0][3], newBoard[0][0] = 'r', '.'
-
-    # --- Update rook move status ---
-    if piece == 'R':
-        if fromSquare == 'a1': newRights['white_rook_a_moved'] = True
-        elif fromSquare == 'h1': newRights['white_rook_h_moved'] = True
-    elif piece == 'r':
-        if fromSquare == 'a8': newRights['black_rook_a_moved'] = True
-        elif fromSquare == 'h8': newRights['black_rook_h_moved'] = True
-
-    # --- Reset local en passant if no new one is set ---
-    if not setEnPassant:
-        localEnPassantSquare = None
-        localEnPassantColor = None
-
-    return newBoard, newRights, localEnPassantSquare, localEnPassantColor
 
 
     
@@ -760,26 +695,166 @@ def generateAlllegalMoves(board, color):
 
     
 def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
-    material = computeMaterial(board)
-    position = computePosition(board,piecePositionMap)
-    mobility = computeMobility(board,moves,mobilityHint=None)
-    pawnStructure = computePawnStructure(board)
-    kingSafety = computeKingSafety(board)
-    centerControl = computeCenterControl(board)
-    totalScore = (material * 1.0 + position * 0.8 + mobility * 0.2 + pawnStructure * 0.5 + kingSafety * 0.7 + centerControl)
-    totalScore += 20
-    return totalScore
-
-def computeMaterial(board):
+    global isBlackQueenExist,isWhiteQueenExist,pawnPosition
+    
+    score = 0
+    
     pieceValue = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 0,
                 'p': -100, 'n': -320, 'b': -330, 'r': -500, 'q': -900, 'k': 0}
-    score = 0
+    
+    isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
+    
+    
+    #For position computation
+    pieceCoefficientInOpen = {'p':1.0,'P':1.0,'n':1.4,'N':1.4,'b':1.3,'B':1.3,
+                              'r':0.8,'R':0.8,'q':0.5,'Q':0.5,'k':1.0,'K':1.0}
+    pieceCoefficientInEnd = {'p':1.2,'P':1.2,'n':1.0,'N':1.0,'b':1.1,'B':1.1,
+                              'r':1.0,'R':1.0,'q':0.5,'Q':0.5,'k':2.0,'K':2.0}
+    piecePositionScoreCap = {'p':20,'n':30,'b':30,'q':10,'r':20,'k':20}
+    pstScale = 0.3
+    if isEndGame:
+        pstScale = 0.15
+    
+    if isEndGame:
+        piecePositionScoreCap['k'] = 60
+        
+    #For mobility computation
+    pieceCoefficientMap = {'N':1.0,'B':1.0,'P':0.5,'R':0.8,'K':(0.3 if not isEndGame else 1),'Q':0.6}
+    mobilityCap = {
+    'N': 30,   
+    'B': 40,   
+    'R': 25,   
+    'Q': 20,   
+    'K': 15,   
+    'P': 10    
+}
+    #Calculating the amount of move
+
+
+    numWhite = len(generateAlllegalMoves(board,'white'))
+    numBlack = len(generateAlllegalMoves(board,'black'))
+    score += (numWhite-numBlack)*(0.6 if not isEndGame else 0.2)
+    #return 0
+    
+    
+    pawnStructureScore = computePawnStructure(board)
+    score+=pawnStructureScore*(0.15 if not isEndGame else 0.25)
+    #Looping over the board and calculate the score for each square
     for row in range(8):
         for col in range(8):
+            
             piece = board[row][col]
+            
             if piece != '.':
+                #Calculating material score, which has the coefficient of 1.0
                 score+=pieceValue[piece]
+                #Calculating position score, which has the coefficient of 0.8
+                if not isEndGame:
+                    piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
+                    cap = piecePositionScoreCap[piece.lower()]
+                    if piecePositionScore > cap:
+                        piecePositionScore = cap
+                    elif piecePositionScore < -cap:
+                        piecePositionScore = -cap
+                else:
+                    piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
+                    cap = piecePositionScoreCap[piece.lower()]
+                    if piecePositionScore > cap:
+                        piecePositionScore = cap
+                    elif piecePositionScore < -cap:
+                        piecePositionScore = -cap
+                if piece.isupper():
+                    score += piecePositionScore*0.8
+                elif piece.islower():
+                    score -= piecePositionScore*0.8
+
+            #Compute for mobility score, which has the coefficient of (0.6 if not isEndGame else 0.2)
+            fromSquare = indexToAlgebraic(row,col)
+            if piece == 'P' or piece == 'p':
+                moveForPiece = generatePawnMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['P']:
+                    addingscore = mobilityCap['P']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            elif piece == 'N' or piece == 'n':
+                moveForPiece = generateKnightMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['N']:
+                    addingscore = mobilityCap['N']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            elif piece == 'B' or piece == 'b':
+                moveForPiece = generateBishopMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['B']:
+                    addingscore = mobilityCap['B']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            elif piece == 'R' or piece == 'r':
+                moveForPiece = generateRookMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['R']:
+                    addingscore = mobilityCap['R']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            elif piece == 'Q' or piece == 'q':
+                moveForPiece = generateQueenMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['Q']:
+                    addingscore = mobilityCap['Q']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            elif piece == 'K' or piece == 'k':
+                moveForPiece = generateKingMoves(board,fromSquare)
+                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+                if addingscore >= mobilityCap['K']:
+                    addingscore = mobilityCap['K']
+                if piece.isupper():
+                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                else:
+                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+            
+            
+        
+            
+    
+    
+    
+
+    kingSafety = computeKingSafety(board)
+    centerControl = computeCenterControl(board)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    score += kingSafety * (1.0 if not isEndGame else 0.5) + centerControl
     return score
+
+
 
 
 def importPositionMap():
@@ -799,136 +874,72 @@ def importPositionMap():
             piecePositionMap[piece.lower()] = arr[::-1].tolist()
     return piecePositionMap
 
-def computePosition(board,piecePositionMap):
-    global isWhiteQueenExist, isBlackQueenExist
-    
-    pieceCoefficientInOpen = {'p':1.0,'P':1.0,'n':1.4,'N':1.4,'b':1.3,'B':1.3,
-                              'r':0.8,'R':0.8,'q':0.5,'Q':0.5,'k':1.0,'K':1.0}
-    pieceCoefficientInEnd = {'p':1.2,'P':1.2,'n':1.0,'N':1.0,'b':1.1,'B':1.1,
-                              'r':1.0,'R':1.0,'q':0.5,'Q':0.5,'k':2.0,'K':2.0}
-    piecePositionScoreCap = {'p':20,'n':30,'b':30,'q':10,'r':20,'k':20}
-    isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
-    pstScale = 0.3
-    if isEndGame:
-        pstScale = 0.15
-    score = 0
-    if isEndGame:
-        piecePositionScoreCap['k'] = 60
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece == '.':
-                continue
-            if not isEndGame:
-                piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
-                cap = piecePositionScoreCap[piece.lower()]
-                if piecePositionScore > cap:
-                    piecePositionScore = cap
-                elif piecePositionScore < -cap:
-                    piecePositionScore = -cap
-            else:
-                piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
-                cap = piecePositionScoreCap[piece.lower()]
-                if piecePositionScore > cap:
-                    piecePositionScore = cap
-                elif piecePositionScore < -cap:
-                    piecePositionScore = -cap
-            if piece.isupper():
-                score += piecePositionScore
-            elif piece.islower():
-                score -= piecePositionScore
-    return score
-
-def computeMobility(board,moves,mobilityHint=None):
-    global isWhiteQueenExist, isBlackQueenExist
-    isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
-    score = 0
-    pieceCoefficientMap = {'N':1.0,'B':1.0,'P':0.5,'R':0.8,'K':(0.3 if not isEndGame else 1),'Q':0.6}
-    mobilityCap = {
-    'N': 30,   
-    'B': 40,   
-    'R': 25,   
-    'Q': 20,   
-    'K': 15,   
-    'P': 10    
-}
-    if mobilityHint != None:
-        score+= mobilityHint
-    else:#Only use when in indepent evaluation
-        numWhite = len(generateAlllegalMoves(board,'white'))
-        numBlack = len(generateAlllegalMoves(board,'black'))
-        score += numWhite-numBlack
-        #return 0
-    
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            fromSquare = indexToAlgebraic(row,col)
-            if piece =='.':
-                continue
-            if piece == 'P' or piece == 'p':
-                moveForPiece = generatePawnMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['P']:
-                    addingscore = mobilityCap['P']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-            elif piece == 'N' or piece == 'n':
-                moveForPiece = generateKnightMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['N']:
-                    addingscore = mobilityCap['N']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-            elif piece == 'B' or piece == 'b':
-                moveForPiece = generateBishopMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['B']:
-                    addingscore = mobilityCap['B']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-            elif piece == 'R' or piece == 'r':
-                moveForPiece = generateRookMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['R']:
-                    addingscore = mobilityCap['R']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-            elif piece == 'Q' or piece == 'q':
-                moveForPiece = generateQueenMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['Q']:
-                    addingscore = mobilityCap['Q']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-            elif piece == 'K' or piece == 'k':
-                moveForPiece = generateKingMoves(board,fromSquare)
-                addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
-                if addingscore >= mobilityCap['K']:
-                    addingscore = mobilityCap['K']
-                if piece.isupper():
-                    score+=addingscore
-                else:
-                    score-=addingscore
-    return score
 
 def computePawnStructure(board):
-    return 0
+    global pawnPosition
+    score = 0
+    whitePawnPositions = pawnPosition['white']
+    blackPawnPositions = pawnPosition['black']
+    for position in whitePawnPositions:
+        #if it is an along pawn or support by pawn chain
+        row,col=algebraicToIndex(position)
+        
+        dir = [(1,-1),(1,1)]
+        for dr,dc in dir:
+            surroundingRow,surroundingCol = row+dr,col+dc
+            if (0<=surroundingRow<8) and (0<=surroundingCol<8):
+                if(board[surroundingRow][surroundingCol]=='P'):
+                    if((0<=row-1<8) and (0<=col+1<8) and (board[row-1][col+1]!='p')) or ((0<=row-1<8) and (0<=col-1<8) and (board[row-1][col-1]!='p')):
+                        score +=10
+                    else:
+                        score +=5
+                else:
+                    score -=5
+        
+        #if there is a doubled pawn in col
+        for i in range(8):
+            if (board[i][col] == 'P') and (i != row):
+                score-=10
+        
+
+        
+                
+        
+    for position in blackPawnPositions:
+        #if it is an along pawn or support by pawn chain
+        row,col=algebraicToIndex(position)
+        dir = [(-1,-1),(-1,1)]
+        for dr,dc in dir:
+            surroundingRow,surroundingCol = row+dr,col+dc
+            if (0<=surroundingRow<8) and (0<=surroundingCol<8):
+                if(board[surroundingRow][surroundingCol]=='p'):
+                    if((0<=row+1<8) and (0<=col+1<8) and (board[row+1][col+1]!='p')) or ((0<=row+1<8) and (0<=col-1<8) and (board[row+1][col-1]!='p')):
+                        score -=10
+                    else:
+                        score -=5
+                else:
+                    score +=5
+        #if there is a doubled pawn in col
+        for i in range(8):
+            if (board[i][col] == 'p') and (i!=row):
+                score+=10
+                    
+    return score
+
+
 
 def computeKingSafety(board):
     return 0
 
 def computeCenterControl(board):
+    global centerWeights
+    # for row in range(8):
+    #     for col in range(8):
+    #         sign = 1
+    #         piece = board[row][col]
+    #         if piece.islower():
+    #             sign = -1
+            #Determine if there is a piece
     return 0
 
 
@@ -954,7 +965,7 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
         rootMobility = len(moves) if color =='white' else -len(moves)
         
     if depth == 0:
-        return evaluateBoard(board,piecePositionMap,moves,mobilityHint=len(moves))
+        return evaluateBoard(board,piecePositionMap,moves)
     if maximizingPlayer:
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
@@ -1079,13 +1090,38 @@ def main():
     piecePositionMap = importPositionMap()
     printBoard(board)
     numOfSteps = 0
+    engineSide = None
+    print('1: Engine use white')
+    print('2: Engine use black')
+    print('3: Engine do not participate')
+    print('4: Engine in both side')
+    choice = input('Choose number to choose where should engine be: ')
+    if choice == '1':
+        engineSide = 'white'
+    elif choice == '2':
+        engineSide = 'black'
+    elif choice == '3':
+        engineSide = 'none'
+    elif choice == '4':
+        engineSide = 'both'
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
         startTime = time.time()
-        print(findBestMove(board,color,3,piecePositionMap))
+        if engineSide == 'both' or color == engineSide:
+            moveRecommend = findBestMove(board,color,3,piecePositionMap)
+            if moveRecommend is None:
+                print('Mated')
+                break
+            print(moveRecommend)
+            doMove(board,moveRecommend[0],moveRecommend[1])
+            printBoard(board)
+            numOfSteps += 1 
+            continue 
         endTime = time.time()
         diff = endTime-startTime
         print(diff)
+        
+        
         move = input("请输入你的走法（例如 e2 e4，或输入 q 退出）：")
         if move.lower() == 'q':
             break
@@ -1111,14 +1147,223 @@ main()
 
 
 
+# def computeMaterial(board):
+#     pieceValue = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 0,
+#                 'p': -100, 'n': -320, 'b': -330, 'r': -500, 'q': -900, 'k': 0}
+#     score = 0
+#     for row in range(8):
+#         for col in range(8):
+#             piece = board[row][col]
+#             if piece != '.':
+#                 score+=pieceValue[piece]
+#     return score
+
+# def computePosition(board,piecePositionMap):
+#     global isWhiteQueenExist, isBlackQueenExist
+    
+#     pieceCoefficientInOpen = {'p':1.0,'P':1.0,'n':1.4,'N':1.4,'b':1.3,'B':1.3,
+#                               'r':0.8,'R':0.8,'q':0.5,'Q':0.5,'k':1.0,'K':1.0}
+#     pieceCoefficientInEnd = {'p':1.2,'P':1.2,'n':1.0,'N':1.0,'b':1.1,'B':1.1,
+#                               'r':1.0,'R':1.0,'q':0.5,'Q':0.5,'k':2.0,'K':2.0}
+#     piecePositionScoreCap = {'p':20,'n':30,'b':30,'q':10,'r':20,'k':20}
+#     isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
+#     pstScale = 0.3
+#     if isEndGame:
+#         pstScale = 0.15
+#     score = 0
+#     if isEndGame:
+#         piecePositionScoreCap['k'] = 60
+#     for row in range(8):
+#         for col in range(8):
+#             piece = board[row][col]
+#             if piece == '.':
+#                 continue
+#             if not isEndGame:
+#                 piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
+#                 cap = piecePositionScoreCap[piece.lower()]
+#                 if piecePositionScore > cap:
+#                     piecePositionScore = cap
+#                 elif piecePositionScore < -cap:
+#                     piecePositionScore = -cap
+#             else:
+#                 piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
+#                 cap = piecePositionScoreCap[piece.lower()]
+#                 if piecePositionScore > cap:
+#                     piecePositionScore = cap
+#                 elif piecePositionScore < -cap:
+#                     piecePositionScore = -cap
+#             if piece.isupper():
+#                 score += piecePositionScore
+#             elif piece.islower():
+#                 score -= piecePositionScore
+#     return score
+
+# def computeMobility(board,moves,mobilityHint=None):
+#     global isWhiteQueenExist, isBlackQueenExist
+#     isEndGame = not(isWhiteQueenExist and isBlackQueenExist)
+#     score = 0
+#     pieceCoefficientMap = {'N':1.0,'B':1.0,'P':0.5,'R':0.8,'K':(0.3 if not isEndGame else 1),'Q':0.6}
+#     mobilityCap = {
+#     'N': 30,   
+#     'B': 40,   
+#     'R': 25,   
+#     'Q': 20,   
+#     'K': 15,   
+#     'P': 10    
+# }
+#     if mobilityHint != None:
+#         score+= mobilityHint
+#     else:#Only use when in indepent evaluation
+#         numWhite = len(generateAlllegalMoves(board,'white'))
+#         numBlack = len(generateAlllegalMoves(board,'black'))
+#         score += numWhite-numBlack
+#         #return 0
+    
+#     for row in range(8):
+#         for col in range(8):
+#             piece = board[row][col]
+#             fromSquare = indexToAlgebraic(row,col)
+#             if piece =='.':
+#                 continue
+#             if piece == 'P' or piece == 'p':
+#                 moveForPiece = generatePawnMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['P']:
+#                     addingscore = mobilityCap['P']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#             elif piece == 'N' or piece == 'n':
+#                 moveForPiece = generateKnightMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['N']:
+#                     addingscore = mobilityCap['N']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#             elif piece == 'B' or piece == 'b':
+#                 moveForPiece = generateBishopMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['B']:
+#                     addingscore = mobilityCap['B']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#             elif piece == 'R' or piece == 'r':
+#                 moveForPiece = generateRookMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['R']:
+#                     addingscore = mobilityCap['R']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#             elif piece == 'Q' or piece == 'q':
+#                 moveForPiece = generateQueenMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['Q']:
+#                     addingscore = mobilityCap['Q']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#             elif piece == 'K' or piece == 'k':
+#                 moveForPiece = generateKingMoves(board,fromSquare)
+#                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
+#                 if addingscore >= mobilityCap['K']:
+#                     addingscore = mobilityCap['K']
+#                 if piece.isupper():
+#                     score+=addingscore
+#                 else:
+#                     score-=addingscore
+#     return score
 
 
 
 
 
 
+# def makeMove(board, fromSquare, toSquare, rights):
+#     """
+#     Create a temporary board copy to simulate a move (no global side effects).
+#     This version:
+#         - Reads enPassant / castling from globals (safe since it doesn't modify them)
+#         - Updates only local copies
+#         - Returns (newBoard, newRights, localEnPassantSquare, localEnPassantColor)
+#     """
+#     global enPassantSquare, enPassantColor  # read-only usage
+#     newBoard = copy.deepcopy(board)
+#     newRights = copy.deepcopy(rights)
 
+#     # local en passant (isolated from global)
+#     localEnPassantSquare = enPassantSquare
+#     localEnPassantColor = enPassantColor
+#     setEnPassant = False
 
+#     fromRow, fromCol = algebraicToIndex(fromSquare)
+#     toRow, toCol = algebraicToIndex(toSquare)
+#     piece = newBoard[fromRow][fromCol]
+#     target = newBoard[toRow][toCol]
+
+#     # --- En passant capture logic ---
+#     if piece in ('P', 'p'):
+#         if abs(fromRow - toRow) == 2:
+#             # set potential en passant
+#             if piece == 'P':
+#                 localEnPassantSquare = indexToAlgebraic(toRow + 1, fromCol)
+#                 localEnPassantColor = 'white'
+#             else:
+#                 localEnPassantSquare = indexToAlgebraic(toRow - 1, fromCol)
+#                 localEnPassantColor = 'black'
+#             setEnPassant = True
+#         elif toSquare == enPassantSquare:
+#             # handle actual en passant capture
+#             if piece == 'P' and enPassantColor == 'black':
+#                 newBoard[fromRow + 1][toCol] = '.'
+#             elif piece == 'p' and enPassantColor == 'white':
+#                 newBoard[fromRow - 1][toCol] = '.'
+
+#     # --- Execute move ---
+#     newBoard[toRow][toCol] = piece
+#     newBoard[fromRow][fromCol] = '.'
+
+#     # --- Promotion ---
+#     if piece == 'P' and toRow == 0:
+#         newBoard[toRow][toCol] = 'Q'
+#     elif piece == 'p' and toRow == 7:
+#         newBoard[toRow][toCol] = 'q'
+
+#     # --- Castling logic ---
+#     if piece == 'K':
+#         newRights['white_king_moved'] = True
+#         if fromSquare == 'e1' and toSquare == 'g1':
+#             newBoard[7][5], newBoard[7][7] = 'R', '.'
+#         elif fromSquare == 'e1' and toSquare == 'c1':
+#             newBoard[7][3], newBoard[7][0] = 'R', '.'
+#     elif piece == 'k':
+#         newRights['black_king_moved'] = True
+#         if fromSquare == 'e8' and toSquare == 'g8':
+#             newBoard[0][5], newBoard[0][7] = 'r', '.'
+#         elif fromSquare == 'e8' and toSquare == 'c8':
+#             newBoard[0][3], newBoard[0][0] = 'r', '.'
+
+#     # --- Update rook move status ---
+#     if piece == 'R':
+#         if fromSquare == 'a1': newRights['white_rook_a_moved'] = True
+#         elif fromSquare == 'h1': newRights['white_rook_h_moved'] = True
+#     elif piece == 'r':
+#         if fromSquare == 'a8': newRights['black_rook_a_moved'] = True
+#         elif fromSquare == 'h8': newRights['black_rook_h_moved'] = True
+
+#     # --- Reset local en passant if no new one is set ---
+#     if not setEnPassant:
+#         localEnPassantSquare = None
+#         localEnPassantColor = None
+
+#     return newBoard, newRights, localEnPassantSquare, localEnPassantColor
 
 
 
