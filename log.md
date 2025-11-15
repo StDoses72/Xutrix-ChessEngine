@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/11/14
+
+Add the function of kingSafety. At the same time, take the consider of king position into two different version. Be more passive in open and middle game, and be more aggressive in endgame
+
 2025/11/12
 
 Combined the evaluateBoard from mulitiple function into one. Finished the development of computing for pawn structure, by examining the idea of double pawn, pawn chain and isoloated pawn
