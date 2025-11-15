@@ -15,7 +15,7 @@ piece_files = {
     "b": "b_table_adjusted.json",
     "r": "r_table.json",
     "q": "q_table.json",
-    "k": "k_table.json",
+    "k": "k_table.json"
 }
 
 piece_paths = {
@@ -30,6 +30,16 @@ rookJsonPath   = piece_paths["r"]
 queenJsonPath  = piece_paths["q"]
 kingJsonPath   = piece_paths["k"]
 
+kingEndPosition = [
+    [-50, -30, -30, -30, -30, -30, -30, -50],
+    [-30, -10, -10, -10, -10, -10, -10, -30],
+    [-30, -10,  20,  20,  20,  20, -10, -30],
+    [-30, -10,  20,  40,  40,  20, -10, -30],
+    [-30, -10,  20,  40,  40,  20, -10, -30],
+    [-30, -10,  20,  20,  20,  20, -10, -30],
+    [-30, -10, -10, -10, -10, -10, -10, -30],
+    [-50, -30, -30, -30, -30, -30, -30, -50]
+    ]
 
 
 castling_rights = {
@@ -736,7 +746,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     score += (numWhite-numBlack)*(0.6 if not isEndGame else 0.2)
     #return 0
     
-    
+    #Compute pawn structure score
     pawnStructureScore = computePawnStructure(board)
     score+=pawnStructureScore*(0.15 if not isEndGame else 0.25)
     #Looping over the board and calculate the score for each square
@@ -748,6 +758,8 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
             if piece != '.':
                 #Calculating material score, which has the coefficient of 1.0
                 score+=pieceValue[piece]
+                
+                
                 #Calculating position score, which has the coefficient of 0.8
                 if not isEndGame:
                     piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
@@ -757,7 +769,12 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                     elif piecePositionScore < -cap:
                         piecePositionScore = -cap
                 else:
-                    piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
+                    if piece=='K':
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['Ke'][row][col]
+                    elif piece=='k':
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['ke'][row][col]
+                    else:
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
                     cap = piecePositionScoreCap[piece.lower()]
                     if piecePositionScore > cap:
                         piecePositionScore = cap
@@ -816,6 +833,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                 else:
                     score-=addingscore*(0.6 if not isEndGame else 0.2)
             elif piece == 'K' or piece == 'k':
+                #Kings mobility
                 moveForPiece = generateKingMoves(board,fromSquare)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['K']:
@@ -824,34 +842,40 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                     score+=addingscore*(0.6 if not isEndGame else 0.2)
                 else:
                     score-=addingscore*(0.6 if not isEndGame else 0.2)
-            
-            
-        
-            
-    
-    
-    
+                    
+                #kingSafety
+                surrounding = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+                friPieceAroundWhite = 0
+                friPieceAroundBlack = 0
+                for dr,dc in surrounding:
+                    r = row+dr
+                    c = col+dc
+                    if (0<=r<8) and (0<=c<8):
+                        pieceAround = board[r][c]
+                        pieceAroundKingScore = {'P':10,'N':3,'B':3,'R':0.5,'Q':-2,
+                                                'p':-10,'n':-3,'b':-3,'r':-0.5,'q':-2,}
+                        if piece == 'K':
+                            if pieceAround != '.'and not isOpponent(piece,pieceAround):
+                                friPieceAroundWhite += 1
+                                if not isEndGame:
+                                    score+=pieceAroundKingScore[pieceAround]
+                                
+                        elif piece == 'k':
+                            if pieceAround != '.'and not isOpponent(piece,pieceAround):
+                                friPieceAroundBlack += 1
+                                if not isEndGame:
+                                    score+=pieceAroundKingScore[pieceAround]
+                if isEndGame:
+                    if friPieceAroundWhite > 3:
+                        score -= (friPieceAroundWhite - 3) * 0.15
+                    if friPieceAroundBlack > 3:
+                        score += (friPieceAroundBlack - 3) * 0.15
 
-    kingSafety = computeKingSafety(board)
-    centerControl = computeCenterControl(board)
+                centerControl = computeCenterControl(board)
     
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    score += kingSafety * (1.0 if not isEndGame else 0.5) + centerControl
+    score += centerControl
     return score
 
 
@@ -872,6 +896,8 @@ def importPositionMap():
             
             piecePositionMap[piece] = arr.tolist()
             piecePositionMap[piece.lower()] = arr[::-1].tolist()
+    piecePositionMap['Ke']=kingEndPosition
+    piecePositionMap['ke']=kingEndPosition[::-1]
     return piecePositionMap
 
 
@@ -928,8 +954,7 @@ def computePawnStructure(board):
 
 
 
-def computeKingSafety(board):
-    return 0
+
 
 def computeCenterControl(board):
     global centerWeights
