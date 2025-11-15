@@ -3,6 +3,12 @@
 /* BEGIN: Cython Metadata
 {
     "distutils": {
+        "define_macros": [
+            [
+                "Py_LIMITED_API",
+                "0x03080000"
+            ]
+        ],
         "extra_compile_args": [
             "/O2"
         ],
@@ -2370,7 +2376,7 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_test __pyx_string_tab[41]
 #define __pyx_n_u_values __pyx_string_tab[42]
 #define __pyx_n_u_white __pyx_string_tab[43]
-#define __pyx_kp_b_iso88591_1_xs_1_1_U_1_82Q_Qb_Qb_Qb_Qb_Cr __pyx_string_tab[44]
+#define __pyx_kp_b_iso88591_Q_xs_1_1_U_1_82Q_Qb_Qb_Qb_Qb_Cr __pyx_string_tab[44]
 #define __pyx_int_0 __pyx_number_tab[0]
 #define __pyx_int_neg_1 __pyx_number_tab[1]
 #define __pyx_int_1 __pyx_number_tab[2]
@@ -2436,7 +2442,7 @@ return 0;
 /* "isSquareAttacked.pyx":20
  * rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))
  * 
- * cpdef bint isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
+ * cpdef int isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
  *     cdef int dr, dc, r, c
  *     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
 */
@@ -2460,6 +2466,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   PyObject *__pyx_v_bishopChar = 0;
   PyObject *__pyx_v_queenChar = 0;
   PyObject *__pyx_v_rookChar = 0;
+  int __pyx_v_count;
   long __pyx_v_i;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
@@ -2474,17 +2481,26 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("isSquareAttacked", 0);
 
-  /* "isSquareAttacked.pyx":25
+  /* "isSquareAttacked.pyx":23
+ *     cdef int dr, dc, r, c
+ *     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
+ *     cdef int count = 0             # <<<<<<<<<<<<<<
+ * 
+ * 
+*/
+  __pyx_v_count = 0;
+
+  /* "isSquareAttacked.pyx":26
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
  *         pawnChar = 'P'
  *     else:
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 25, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 26, __pyx_L1_error)
   if (__pyx_t_1) {
 
-    /* "isSquareAttacked.pyx":26
+    /* "isSquareAttacked.pyx":27
  * 
  *     if byColor == 'white':
  *         pawnChar = 'P'             # <<<<<<<<<<<<<<
@@ -2494,7 +2510,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_P);
     __pyx_v_pawnChar = __pyx_mstate_global->__pyx_n_u_P;
 
-    /* "isSquareAttacked.pyx":25
+    /* "isSquareAttacked.pyx":26
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
@@ -2504,7 +2520,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     goto __pyx_L3;
   }
 
-  /* "isSquareAttacked.pyx":28
+  /* "isSquareAttacked.pyx":29
  *         pawnChar = 'P'
  *     else:
  *         pawnChar = 'p'             # <<<<<<<<<<<<<<
@@ -2517,7 +2533,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   }
   __pyx_L3:;
 
-  /* "isSquareAttacked.pyx":29
+  /* "isSquareAttacked.pyx":30
  *     else:
  *         pawnChar = 'p'
  *     for i in range(2):             # <<<<<<<<<<<<<<
@@ -2527,55 +2543,55 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   for (__pyx_t_2 = 0; __pyx_t_2 < 2; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
 
-    /* "isSquareAttacked.pyx":30
+    /* "isSquareAttacked.pyx":31
  *         pawnChar = 'p'
  *     for i in range(2):
  *         if byColor =='white':             # <<<<<<<<<<<<<<
  *             dr = pawnDirWhite[i][0]
  *             dc = pawnDirWhite[i][1]
 */
-    __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 30, __pyx_L1_error)
+    __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 31, __pyx_L1_error)
     if (__pyx_t_1) {
 
-      /* "isSquareAttacked.pyx":31
+      /* "isSquareAttacked.pyx":32
  *     for i in range(2):
  *         if byColor =='white':
  *             dr = pawnDirWhite[i][0]             # <<<<<<<<<<<<<<
  *             dc = pawnDirWhite[i][1]
  *         else:
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 31, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 31, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 31, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 31, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __pyx_v_dr = __pyx_t_5;
 
-      /* "isSquareAttacked.pyx":32
+      /* "isSquareAttacked.pyx":33
  *         if byColor =='white':
  *             dr = pawnDirWhite[i][0]
  *             dc = pawnDirWhite[i][1]             # <<<<<<<<<<<<<<
  *         else:
  *             dr = pawnDirBlack[i][0]
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 32, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 32, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __pyx_v_dc = __pyx_t_5;
 
-      /* "isSquareAttacked.pyx":30
+      /* "isSquareAttacked.pyx":31
  *         pawnChar = 'p'
  *     for i in range(2):
  *         if byColor =='white':             # <<<<<<<<<<<<<<
@@ -2585,7 +2601,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
       goto __pyx_L6;
     }
 
-    /* "isSquareAttacked.pyx":34
+    /* "isSquareAttacked.pyx":35
  *             dc = pawnDirWhite[i][1]
  *         else:
  *             dr = pawnDirBlack[i][0]             # <<<<<<<<<<<<<<
@@ -2593,40 +2609,40 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
  *         r = dr + row
 */
     /*else*/ {
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 34, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 34, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 34, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __pyx_v_dr = __pyx_t_5;
 
-      /* "isSquareAttacked.pyx":35
+      /* "isSquareAttacked.pyx":36
  *         else:
  *             dr = pawnDirBlack[i][0]
  *             dc = pawnDirBlack[i][1]             # <<<<<<<<<<<<<<
  *         r = dr + row
  *         c = dc + col
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 35, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 35, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __pyx_v_dc = __pyx_t_5;
     }
     __pyx_L6:;
 
-    /* "isSquareAttacked.pyx":36
+    /* "isSquareAttacked.pyx":37
  *             dr = pawnDirBlack[i][0]
  *             dc = pawnDirBlack[i][1]
  *         r = dr + row             # <<<<<<<<<<<<<<
@@ -2635,7 +2651,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_r = (__pyx_v_dr + __pyx_v_row);
 
-    /* "isSquareAttacked.pyx":37
+    /* "isSquareAttacked.pyx":38
  *             dc = pawnDirBlack[i][1]
  *         r = dr + row
  *         c = dc + col             # <<<<<<<<<<<<<<
@@ -2644,12 +2660,12 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_c = (__pyx_v_dc + __pyx_v_col);
 
-    /* "isSquareAttacked.pyx":38
+    /* "isSquareAttacked.pyx":39
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == pawnChar:
- *                 return True
+ *                 count+=1
 */
     __pyx_t_6 = (0 <= __pyx_v_r);
     if (__pyx_t_6) {
@@ -2668,63 +2684,62 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L8_bool_binop_done:;
     if (__pyx_t_1) {
 
-      /* "isSquareAttacked.pyx":39
+      /* "isSquareAttacked.pyx":40
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == pawnChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       if (unlikely(__pyx_v_board == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 39, __pyx_L1_error)
+        __PYX_ERR(0, 40, __pyx_L1_error)
       }
-      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 39, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 40, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_pawnChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 39, __pyx_L1_error)
+      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_pawnChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 40, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (__pyx_t_1) {
 
-        /* "isSquareAttacked.pyx":40
+        /* "isSquareAttacked.pyx":41
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == pawnChar:
- *                 return True             # <<<<<<<<<<<<<<
+ *                 count+=1             # <<<<<<<<<<<<<<
  * 
  * 
 */
-        __pyx_r = 1;
-        goto __pyx_L0;
+        __pyx_v_count = (__pyx_v_count + 1);
 
-        /* "isSquareAttacked.pyx":39
+        /* "isSquareAttacked.pyx":40
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == pawnChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       }
 
-      /* "isSquareAttacked.pyx":38
+      /* "isSquareAttacked.pyx":39
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == pawnChar:
- *                 return True
+ *                 count+=1
 */
     }
   }
 
-  /* "isSquareAttacked.pyx":44
+  /* "isSquareAttacked.pyx":45
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
  *         knightChar = 'N'
  *     else:
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 44, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 45, __pyx_L1_error)
   if (__pyx_t_1) {
 
-    /* "isSquareAttacked.pyx":45
+    /* "isSquareAttacked.pyx":46
  * 
  *     if byColor == 'white':
  *         knightChar = 'N'             # <<<<<<<<<<<<<<
@@ -2734,7 +2749,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_N);
     __pyx_v_knightChar = __pyx_mstate_global->__pyx_n_u_N;
 
-    /* "isSquareAttacked.pyx":44
+    /* "isSquareAttacked.pyx":45
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
@@ -2744,7 +2759,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     goto __pyx_L11;
   }
 
-  /* "isSquareAttacked.pyx":47
+  /* "isSquareAttacked.pyx":48
  *         knightChar = 'N'
  *     else:
  *         knightChar = 'n'             # <<<<<<<<<<<<<<
@@ -2757,7 +2772,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   }
   __pyx_L11:;
 
-  /* "isSquareAttacked.pyx":49
+  /* "isSquareAttacked.pyx":50
  *         knightChar = 'n'
  * 
  *     for i in range(8):             # <<<<<<<<<<<<<<
@@ -2767,45 +2782,45 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   for (__pyx_t_2 = 0; __pyx_t_2 < 8; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
 
-    /* "isSquareAttacked.pyx":50
+    /* "isSquareAttacked.pyx":51
  * 
  *     for i in range(8):
  *         dr = knightDir[i][0]             # <<<<<<<<<<<<<<
  *         dc = knightDir[i][1]
  *         r = dr + row
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_knightDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 50, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_knightDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 51, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 50, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 51, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 50, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 51, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 50, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 51, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dr = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":51
+    /* "isSquareAttacked.pyx":52
  *     for i in range(8):
  *         dr = knightDir[i][0]
  *         dc = knightDir[i][1]             # <<<<<<<<<<<<<<
  *         r = dr + row
  *         c = dc + col
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_knightDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 51, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_knightDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 52, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 51, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 52, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 51, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 52, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 51, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 52, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dc = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":52
+    /* "isSquareAttacked.pyx":53
  *         dr = knightDir[i][0]
  *         dc = knightDir[i][1]
  *         r = dr + row             # <<<<<<<<<<<<<<
@@ -2814,7 +2829,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_r = (__pyx_v_dr + __pyx_v_row);
 
-    /* "isSquareAttacked.pyx":53
+    /* "isSquareAttacked.pyx":54
  *         dc = knightDir[i][1]
  *         r = dr + row
  *         c = dc + col             # <<<<<<<<<<<<<<
@@ -2823,12 +2838,12 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_c = (__pyx_v_dc + __pyx_v_col);
 
-    /* "isSquareAttacked.pyx":54
+    /* "isSquareAttacked.pyx":55
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == knightChar:
- *                 return True
+ *                 count+=1
 */
     __pyx_t_6 = (0 <= __pyx_v_r);
     if (__pyx_t_6) {
@@ -2847,63 +2862,62 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L15_bool_binop_done:;
     if (__pyx_t_1) {
 
-      /* "isSquareAttacked.pyx":55
+      /* "isSquareAttacked.pyx":56
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == knightChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       if (unlikely(__pyx_v_board == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 55, __pyx_L1_error)
+        __PYX_ERR(0, 56, __pyx_L1_error)
       }
-      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 55, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 56, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_knightChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 55, __pyx_L1_error)
+      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_knightChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 56, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (__pyx_t_1) {
 
-        /* "isSquareAttacked.pyx":56
+        /* "isSquareAttacked.pyx":57
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == knightChar:
- *                 return True             # <<<<<<<<<<<<<<
+ *                 count+=1             # <<<<<<<<<<<<<<
  * 
  * 
 */
-        __pyx_r = 1;
-        goto __pyx_L0;
+        __pyx_v_count = (__pyx_v_count + 1);
 
-        /* "isSquareAttacked.pyx":55
+        /* "isSquareAttacked.pyx":56
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == knightChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       }
 
-      /* "isSquareAttacked.pyx":54
+      /* "isSquareAttacked.pyx":55
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == knightChar:
- *                 return True
+ *                 count+=1
 */
     }
   }
 
-  /* "isSquareAttacked.pyx":59
+  /* "isSquareAttacked.pyx":60
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
  *         kingChar = 'K'
  *     else:
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 59, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 60, __pyx_L1_error)
   if (__pyx_t_1) {
 
-    /* "isSquareAttacked.pyx":60
+    /* "isSquareAttacked.pyx":61
  * 
  *     if byColor == 'white':
  *         kingChar = 'K'             # <<<<<<<<<<<<<<
@@ -2913,7 +2927,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_K);
     __pyx_v_kingChar = __pyx_mstate_global->__pyx_n_u_K;
 
-    /* "isSquareAttacked.pyx":59
+    /* "isSquareAttacked.pyx":60
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
@@ -2923,7 +2937,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     goto __pyx_L18;
   }
 
-  /* "isSquareAttacked.pyx":62
+  /* "isSquareAttacked.pyx":63
  *         kingChar = 'K'
  *     else:
  *         kingChar = 'k'             # <<<<<<<<<<<<<<
@@ -2936,7 +2950,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   }
   __pyx_L18:;
 
-  /* "isSquareAttacked.pyx":63
+  /* "isSquareAttacked.pyx":64
  *     else:
  *         kingChar = 'k'
  *     for i in range(8):             # <<<<<<<<<<<<<<
@@ -2946,45 +2960,45 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   for (__pyx_t_2 = 0; __pyx_t_2 < 8; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
 
-    /* "isSquareAttacked.pyx":64
+    /* "isSquareAttacked.pyx":65
  *         kingChar = 'k'
  *     for i in range(8):
  *         dr = kingDir[i][0]             # <<<<<<<<<<<<<<
  *         dc = kingDir[i][1]
  *         r = dr + row
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_kingDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 64, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_kingDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 65, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 64, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 65, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 64, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 65, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 64, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 65, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dr = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":65
+    /* "isSquareAttacked.pyx":66
  *     for i in range(8):
  *         dr = kingDir[i][0]
  *         dc = kingDir[i][1]             # <<<<<<<<<<<<<<
  *         r = dr + row
  *         c = dc + col
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_kingDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 65, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_kingDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 66, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 65, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 66, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 65, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 66, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 65, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 66, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dc = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":66
+    /* "isSquareAttacked.pyx":67
  *         dr = kingDir[i][0]
  *         dc = kingDir[i][1]
  *         r = dr + row             # <<<<<<<<<<<<<<
@@ -2993,7 +3007,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_r = (__pyx_v_dr + __pyx_v_row);
 
-    /* "isSquareAttacked.pyx":67
+    /* "isSquareAttacked.pyx":68
  *         dc = kingDir[i][1]
  *         r = dr + row
  *         c = dc + col             # <<<<<<<<<<<<<<
@@ -3002,12 +3016,12 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_c = (__pyx_v_dc + __pyx_v_col);
 
-    /* "isSquareAttacked.pyx":68
+    /* "isSquareAttacked.pyx":69
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == kingChar:
- *                 return True
+ *                 count+=1
 */
     __pyx_t_6 = (0 <= __pyx_v_r);
     if (__pyx_t_6) {
@@ -3026,63 +3040,62 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L22_bool_binop_done:;
     if (__pyx_t_1) {
 
-      /* "isSquareAttacked.pyx":69
+      /* "isSquareAttacked.pyx":70
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == kingChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       if (unlikely(__pyx_v_board == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 69, __pyx_L1_error)
+        __PYX_ERR(0, 70, __pyx_L1_error)
       }
-      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 69, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 70, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_kingChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 69, __pyx_L1_error)
+      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_t_3, __pyx_v_kingChar, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 70, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (__pyx_t_1) {
 
-        /* "isSquareAttacked.pyx":70
+        /* "isSquareAttacked.pyx":71
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == kingChar:
- *                 return True             # <<<<<<<<<<<<<<
+ *                 count+=1             # <<<<<<<<<<<<<<
  * 
  * 
 */
-        __pyx_r = 1;
-        goto __pyx_L0;
+        __pyx_v_count = (__pyx_v_count + 1);
 
-        /* "isSquareAttacked.pyx":69
+        /* "isSquareAttacked.pyx":70
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
  *             if board[r][c] == kingChar:             # <<<<<<<<<<<<<<
- *                 return True
+ *                 count+=1
  * 
 */
       }
 
-      /* "isSquareAttacked.pyx":68
+      /* "isSquareAttacked.pyx":69
  *         r = dr + row
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
  *             if board[r][c] == kingChar:
- *                 return True
+ *                 count+=1
 */
     }
   }
 
-  /* "isSquareAttacked.pyx":74
+  /* "isSquareAttacked.pyx":75
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
  *         bishopChar = 'B'
  *     else:
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 74, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 75, __pyx_L1_error)
   if (__pyx_t_1) {
 
-    /* "isSquareAttacked.pyx":75
+    /* "isSquareAttacked.pyx":76
  * 
  *     if byColor == 'white':
  *         bishopChar = 'B'             # <<<<<<<<<<<<<<
@@ -3092,7 +3105,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_B);
     __pyx_v_bishopChar = __pyx_mstate_global->__pyx_n_u_B;
 
-    /* "isSquareAttacked.pyx":74
+    /* "isSquareAttacked.pyx":75
  * 
  * 
  *     if byColor == 'white':             # <<<<<<<<<<<<<<
@@ -3102,7 +3115,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     goto __pyx_L25;
   }
 
-  /* "isSquareAttacked.pyx":77
+  /* "isSquareAttacked.pyx":78
  *         bishopChar = 'B'
  *     else:
  *         bishopChar = 'b'             # <<<<<<<<<<<<<<
@@ -3115,14 +3128,14 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   }
   __pyx_L25:;
 
-  /* "isSquareAttacked.pyx":79
+  /* "isSquareAttacked.pyx":80
  *         bishopChar = 'b'
  * 
  *     queenChar = 'Q' if byColor == 'white' else 'q'             # <<<<<<<<<<<<<<
  * 
  *     for i in range(4):
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 79, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 80, __pyx_L1_error)
   if (__pyx_t_1) {
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_Q);
     __pyx_t_3 = __pyx_mstate_global->__pyx_n_u_Q;
@@ -3133,7 +3146,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   __pyx_v_queenChar = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "isSquareAttacked.pyx":81
+  /* "isSquareAttacked.pyx":82
  *     queenChar = 'Q' if byColor == 'white' else 'q'
  * 
  *     for i in range(4):             # <<<<<<<<<<<<<<
@@ -3143,45 +3156,45 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   for (__pyx_t_2 = 0; __pyx_t_2 < 4; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
 
-    /* "isSquareAttacked.pyx":82
+    /* "isSquareAttacked.pyx":83
  * 
  *     for i in range(4):
  *         dr = bishopDir[i][0]             # <<<<<<<<<<<<<<
  *         dc = bishopDir[i][1]
  *         r = row + dr
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_bishopDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 82, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_bishopDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 83, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 82, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 83, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 82, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 83, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 82, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 83, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dr = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":83
+    /* "isSquareAttacked.pyx":84
  *     for i in range(4):
  *         dr = bishopDir[i][0]
  *         dc = bishopDir[i][1]             # <<<<<<<<<<<<<<
  *         r = row + dr
  *         c = col + dc
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_bishopDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 83, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_bishopDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 84, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 83, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 84, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 83, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 84, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 83, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 84, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dc = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":84
+    /* "isSquareAttacked.pyx":85
  *         dr = bishopDir[i][0]
  *         dc = bishopDir[i][1]
  *         r = row + dr             # <<<<<<<<<<<<<<
@@ -3190,7 +3203,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_r = (__pyx_v_row + __pyx_v_dr);
 
-    /* "isSquareAttacked.pyx":85
+    /* "isSquareAttacked.pyx":86
  *         dc = bishopDir[i][1]
  *         r = row + dr
  *         c = col + dc             # <<<<<<<<<<<<<<
@@ -3199,7 +3212,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_c = (__pyx_v_col + __pyx_v_dc);
 
-    /* "isSquareAttacked.pyx":86
+    /* "isSquareAttacked.pyx":87
  *         r = row + dr
  *         c = col + dc
  *         while 0 <= r < 8 and 0 <= c < 8:             # <<<<<<<<<<<<<<
@@ -3224,7 +3237,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
       __pyx_L30_bool_binop_done:;
       if (!__pyx_t_1) break;
 
-      /* "isSquareAttacked.pyx":87
+      /* "isSquareAttacked.pyx":88
  *         c = col + dc
  *         while 0 <= r < 8 and 0 <= c < 8:
  *             piece = board[r][c]             # <<<<<<<<<<<<<<
@@ -3233,81 +3246,80 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
       if (unlikely(__pyx_v_board == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 87, __pyx_L1_error)
+        __PYX_ERR(0, 88, __pyx_L1_error)
       }
-      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 87, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 88, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      if (!(likely(PyUnicode_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_t_3))) __PYX_ERR(0, 87, __pyx_L1_error)
+      if (!(likely(PyUnicode_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_t_3))) __PYX_ERR(0, 88, __pyx_L1_error)
       __Pyx_XDECREF_SET(__pyx_v_piece, ((PyObject*)__pyx_t_3));
       __pyx_t_3 = 0;
 
-      /* "isSquareAttacked.pyx":88
+      /* "isSquareAttacked.pyx":89
  *         while 0 <= r < 8 and 0 <= c < 8:
  *             piece = board[r][c]
  *             if piece != '.':             # <<<<<<<<<<<<<<
  *                 if piece == bishopChar or piece == queenChar:
- *                     return True
+ *                     count+=1
 */
-      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_mstate_global->__pyx_kp_u_, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 88, __pyx_L1_error)
+      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_mstate_global->__pyx_kp_u_, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 89, __pyx_L1_error)
       if (__pyx_t_1) {
 
-        /* "isSquareAttacked.pyx":89
+        /* "isSquareAttacked.pyx":90
  *             piece = board[r][c]
  *             if piece != '.':
  *                 if piece == bishopChar or piece == queenChar:             # <<<<<<<<<<<<<<
- *                     return True
+ *                     count+=1
  *                 break
 */
-        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_bishopChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 89, __pyx_L1_error)
+        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_bishopChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 90, __pyx_L1_error)
         if (!__pyx_t_6) {
         } else {
           __pyx_t_1 = __pyx_t_6;
           goto __pyx_L34_bool_binop_done;
         }
-        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_queenChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 89, __pyx_L1_error)
+        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_queenChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 90, __pyx_L1_error)
         __pyx_t_1 = __pyx_t_6;
         __pyx_L34_bool_binop_done:;
         if (__pyx_t_1) {
 
-          /* "isSquareAttacked.pyx":90
+          /* "isSquareAttacked.pyx":91
  *             if piece != '.':
  *                 if piece == bishopChar or piece == queenChar:
- *                     return True             # <<<<<<<<<<<<<<
+ *                     count+=1             # <<<<<<<<<<<<<<
  *                 break
  *             r += dr; c += dc
 */
-          __pyx_r = 1;
-          goto __pyx_L0;
+          __pyx_v_count = (__pyx_v_count + 1);
 
-          /* "isSquareAttacked.pyx":89
+          /* "isSquareAttacked.pyx":90
  *             piece = board[r][c]
  *             if piece != '.':
  *                 if piece == bishopChar or piece == queenChar:             # <<<<<<<<<<<<<<
- *                     return True
+ *                     count+=1
  *                 break
 */
         }
 
-        /* "isSquareAttacked.pyx":91
+        /* "isSquareAttacked.pyx":92
  *                 if piece == bishopChar or piece == queenChar:
- *                     return True
+ *                     count+=1
  *                 break             # <<<<<<<<<<<<<<
  *             r += dr; c += dc
  * 
 */
         goto __pyx_L29_break;
 
-        /* "isSquareAttacked.pyx":88
+        /* "isSquareAttacked.pyx":89
  *         while 0 <= r < 8 and 0 <= c < 8:
  *             piece = board[r][c]
  *             if piece != '.':             # <<<<<<<<<<<<<<
  *                 if piece == bishopChar or piece == queenChar:
- *                     return True
+ *                     count+=1
 */
       }
 
-      /* "isSquareAttacked.pyx":92
- *                     return True
+      /* "isSquareAttacked.pyx":93
+ *                     count+=1
  *                 break
  *             r += dr; c += dc             # <<<<<<<<<<<<<<
  * 
@@ -3319,14 +3331,14 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L29_break:;
   }
 
-  /* "isSquareAttacked.pyx":95
+  /* "isSquareAttacked.pyx":96
  * 
  * 
  *     rookChar = 'R' if byColor == 'white' else 'r'             # <<<<<<<<<<<<<<
  * 
  *     for i in range(4):
 */
-  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 95, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 96, __pyx_L1_error)
   if (__pyx_t_1) {
     __Pyx_INCREF(__pyx_mstate_global->__pyx_n_u_R);
     __pyx_t_3 = __pyx_mstate_global->__pyx_n_u_R;
@@ -3337,7 +3349,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   __pyx_v_rookChar = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "isSquareAttacked.pyx":97
+  /* "isSquareAttacked.pyx":98
  *     rookChar = 'R' if byColor == 'white' else 'r'
  * 
  *     for i in range(4):             # <<<<<<<<<<<<<<
@@ -3347,45 +3359,45 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
   for (__pyx_t_2 = 0; __pyx_t_2 < 4; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
 
-    /* "isSquareAttacked.pyx":98
+    /* "isSquareAttacked.pyx":99
  * 
  *     for i in range(4):
  *         dr = rookDir[i][0]             # <<<<<<<<<<<<<<
  *         dc = rookDir[i][1]
  *         r = row + dr
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_rookDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 98, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_rookDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 98, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 98, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 98, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dr = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":99
+    /* "isSquareAttacked.pyx":100
  *     for i in range(4):
  *         dr = rookDir[i][0]
  *         dc = rookDir[i][1]             # <<<<<<<<<<<<<<
  *         r = row + dr
  *         c = col + dc
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_rookDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 99, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_rookDir); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 100, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 99, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 100, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 99, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 100, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 99, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 100, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_dc = __pyx_t_5;
 
-    /* "isSquareAttacked.pyx":100
+    /* "isSquareAttacked.pyx":101
  *         dr = rookDir[i][0]
  *         dc = rookDir[i][1]
  *         r = row + dr             # <<<<<<<<<<<<<<
@@ -3394,7 +3406,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_r = (__pyx_v_row + __pyx_v_dr);
 
-    /* "isSquareAttacked.pyx":101
+    /* "isSquareAttacked.pyx":102
  *         dc = rookDir[i][1]
  *         r = row + dr
  *         c = col + dc             # <<<<<<<<<<<<<<
@@ -3403,7 +3415,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
     __pyx_v_c = (__pyx_v_col + __pyx_v_dc);
 
-    /* "isSquareAttacked.pyx":102
+    /* "isSquareAttacked.pyx":103
  *         r = row + dr
  *         c = col + dc
  *         while 0<=r<8 and 0<=c<8:             # <<<<<<<<<<<<<<
@@ -3428,7 +3440,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
       __pyx_L40_bool_binop_done:;
       if (!__pyx_t_1) break;
 
-      /* "isSquareAttacked.pyx":103
+      /* "isSquareAttacked.pyx":104
  *         c = col + dc
  *         while 0<=r<8 and 0<=c<8:
  *             piece = board[r][c]             # <<<<<<<<<<<<<<
@@ -3437,81 +3449,80 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 */
       if (unlikely(__pyx_v_board == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 103, __pyx_L1_error)
+        __PYX_ERR(0, 104, __pyx_L1_error)
       }
-      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 103, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_board, __pyx_v_r), __pyx_v_c, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_SharedReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 104, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      if (!(likely(PyUnicode_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_t_3))) __PYX_ERR(0, 103, __pyx_L1_error)
+      if (!(likely(PyUnicode_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_t_3))) __PYX_ERR(0, 104, __pyx_L1_error)
       __Pyx_XDECREF_SET(__pyx_v_piece, ((PyObject*)__pyx_t_3));
       __pyx_t_3 = 0;
 
-      /* "isSquareAttacked.pyx":104
+      /* "isSquareAttacked.pyx":105
  *         while 0<=r<8 and 0<=c<8:
  *             piece = board[r][c]
  *             if piece != '.':             # <<<<<<<<<<<<<<
  *                 if piece == rookChar or piece == queenChar:
- *                     return True
+ *                     count+=1
 */
-      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_mstate_global->__pyx_kp_u_, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 104, __pyx_L1_error)
+      __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_mstate_global->__pyx_kp_u_, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 105, __pyx_L1_error)
       if (__pyx_t_1) {
 
-        /* "isSquareAttacked.pyx":105
+        /* "isSquareAttacked.pyx":106
  *             piece = board[r][c]
  *             if piece != '.':
  *                 if piece == rookChar or piece == queenChar:             # <<<<<<<<<<<<<<
- *                     return True
+ *                     count+=1
  *                 break
 */
-        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_rookChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_rookChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 106, __pyx_L1_error)
         if (!__pyx_t_6) {
         } else {
           __pyx_t_1 = __pyx_t_6;
           goto __pyx_L44_bool_binop_done;
         }
-        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_queenChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_6 = (__Pyx_PyUnicode_Equals(__pyx_v_piece, __pyx_v_queenChar, Py_EQ)); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 106, __pyx_L1_error)
         __pyx_t_1 = __pyx_t_6;
         __pyx_L44_bool_binop_done:;
         if (__pyx_t_1) {
 
-          /* "isSquareAttacked.pyx":106
+          /* "isSquareAttacked.pyx":107
  *             if piece != '.':
  *                 if piece == rookChar or piece == queenChar:
- *                     return True             # <<<<<<<<<<<<<<
+ *                     count+=1             # <<<<<<<<<<<<<<
  *                 break
  *             r+=dr; c += dc
 */
-          __pyx_r = 1;
-          goto __pyx_L0;
+          __pyx_v_count = (__pyx_v_count + 1);
 
-          /* "isSquareAttacked.pyx":105
+          /* "isSquareAttacked.pyx":106
  *             piece = board[r][c]
  *             if piece != '.':
  *                 if piece == rookChar or piece == queenChar:             # <<<<<<<<<<<<<<
- *                     return True
+ *                     count+=1
  *                 break
 */
         }
 
-        /* "isSquareAttacked.pyx":107
+        /* "isSquareAttacked.pyx":108
  *                 if piece == rookChar or piece == queenChar:
- *                     return True
+ *                     count+=1
  *                 break             # <<<<<<<<<<<<<<
  *             r+=dr; c += dc
  * 
 */
         goto __pyx_L39_break;
 
-        /* "isSquareAttacked.pyx":104
+        /* "isSquareAttacked.pyx":105
  *         while 0<=r<8 and 0<=c<8:
  *             piece = board[r][c]
  *             if piece != '.':             # <<<<<<<<<<<<<<
  *                 if piece == rookChar or piece == queenChar:
- *                     return True
+ *                     count+=1
 */
       }
 
-      /* "isSquareAttacked.pyx":108
- *                     return True
+      /* "isSquareAttacked.pyx":109
+ *                     count+=1
  *                 break
  *             r+=dr; c += dc             # <<<<<<<<<<<<<<
  * 
@@ -3523,20 +3534,20 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L39_break:;
   }
 
-  /* "isSquareAttacked.pyx":111
+  /* "isSquareAttacked.pyx":112
  * 
  * 
- *     return False             # <<<<<<<<<<<<<<
+ *     return count             # <<<<<<<<<<<<<<
  * 
  * 
 */
-  __pyx_r = 0;
+  __pyx_r = __pyx_v_count;
   goto __pyx_L0;
 
   /* "isSquareAttacked.pyx":20
  * rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))
  * 
- * cpdef bint isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
+ * cpdef int isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
  *     cdef int dr, dc, r, c
  *     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
 */
@@ -3690,7 +3701,7 @@ static PyObject *__pyx_pf_16isSquareAttacked_isSquareAttacked(CYTHON_UNUSED PyOb
   __Pyx_RefNannySetupContext("isSquareAttacked", 0);
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = __pyx_f_16isSquareAttacked_isSquareAttacked(__pyx_v_board, __pyx_v_row, __pyx_v_col, __pyx_v_byColor, 1); if (unlikely(__pyx_t_1 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 20, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_PyBool_FromLong(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_r = __pyx_t_2;
   __pyx_t_2 = 0;
@@ -4105,14 +4116,14 @@ __Pyx_RefNannySetupContext("PyInit_isSquareAttacked", 0);
  * bishopDir = ((1, 1), (-1, 1), (-1, -1), (1, -1))
  * rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))             # <<<<<<<<<<<<<<
  * 
- * cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
+ * cpdef int isSquareAttacked(list board, int row, int col, str byColor):
 */
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_rookDir, __pyx_mstate_global->__pyx_tuple[21]) < (0)) __PYX_ERR(0, 18, __pyx_L1_error)
 
   /* "isSquareAttacked.pyx":20
  * rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))
  * 
- * cpdef bint isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
+ * cpdef int isSquareAttacked(list board, int row, int col, str byColor):             # <<<<<<<<<<<<<<
  *     cdef int dr, dc, r, c
  *     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
 */
@@ -4335,7 +4346,7 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
  * bishopDir = ((1, 1), (-1, 1), (-1, -1), (1, -1))
  * rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))             # <<<<<<<<<<<<<<
  * 
- * cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
+ * cpdef int isSquareAttacked(list board, int row, int col, str byColor):
 */
   __pyx_mstate_global->__pyx_tuple[21] = PyTuple_Pack(4, __pyx_mstate_global->__pyx_tuple[17], __pyx_mstate_global->__pyx_tuple[18], __pyx_mstate_global->__pyx_tuple[15], __pyx_mstate_global->__pyx_tuple[16]); if (unlikely(!__pyx_mstate_global->__pyx_tuple[21])) __PYX_ERR(0, 18, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[21]);
@@ -4363,25 +4374,25 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 10; } index[] = {{1},{179},{1},{8},{20},{1},{1},{1},{1},{20},{1},{1},{18},{1},{9},{5},{7},{18},{3},{8},{16},{13},{5},{1},{7},{9},{8},{10},{1},{8},{1},{12},{12},{3},{1},{12},{1},{7},{3},{12},{10},{8},{6},{5},{717}};
-    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (755 bytes) */
-const char* const cstring = "BZh91AY&SY\255\325\030\333\000\000\203\377\373\377\337\376\216u\203?@\277)~\240\277\377\377\340@@@@@@@\000@@@\000@\000@\002|\353\244h\307p\322P\000\000\r\r\000\003@\000\0004\000\000\000\3104\215\023\324\310#\325<\233D\236\251\241\264\324\006F\230\004\031\030\004d\000i\352z \324\304\322$zM2i\243\021\246\2154\320\311\246\231\006F\004\032\006\231\006\206CL$\220\246M4i\023\324\364\033T\375)\352d4\r=F\200\332M\036\243\t\232\236\241\211\246\236OF\251$r\014S\301\2343\245\235\014\251\320i\010)E\241\025*\240\342 \024C\0141p.\"\026\302\000V`\254\360F\260\236\223\342z,\245\\V\257\014L\311\010\006\205\020\203\301Q@VL\021\024\007\374rc\247\216\267\246NF\345G\26173G\344\020!\272+\023\"\340\303\014&J\334\375[\334\320\226]\375KX,\245\032\262w\236:\t\303\227\317\023\301\026\3338a\022\016\333\014\216:\022\2022;\004sY\330\200E\341\341\374\212\370\371!\321'\311\203J1H\214\272\216I\367\311\223\311\331\310k\256\002H\365\234j\265\334\375\225\366`\324\266\226\260M#\333\003(9\302\214j\371\253\022\345\321\271\323\246\302\246\177?\2263\303)\375\216\334\327\342/N\024P\313V\333\251\031\355\242\254s\274\014Y\324\240\020'\216\374\263\nC\260<\312wM]\"\332\212\306c\256Qu\345G\201\235\2701\006\337\t\315\014\305\n\021\240h\2431\260\262\235]\224\215\031F9\000\317\221o\363\335o\366\267\341\226\372\020\306\204n7\201\025\013\352p\212\355\010\270\270\237T\r\232\253\020E\301\252dMa\233+!\270\327X\023\211\247\034\237\246\373\243\020\021\022C\321B\352L~\r<\272\257G=x\256\020\373\312\202\023\346\226\r\025\302L\222\036ay\026E\022@\261-n\260\227CWKB\236yH\234AnK\326\014\225Y\207\312\033\031\311\032J[\300\312<F\313u\256\242\206\322 \265\ti\t\201t\201c\357\010\215\t1\346\014d S\353\024\242m,\223\371\2208\237\205`\335 <\"\035\300lZ\265\206M[\246\325\372\330\220ps\003\010\314\261\243 \037\202Aw{\341\224_\\!\334\362'\356%\371F\224e\rp\350;\020\307\027OD\3607\303ud\\\345\356\240\302\2261\360\2508W\313\032]j\370s\365\373\302\203C\225\001\220\252\241\370\003\003,K2\241R*\017\200?\017\236\246\\\200\312t\372\004\200\037@""E\0010\267\245\326\032\264\277xM\201\310\373\020\210\306*\346l\r\204\020\030 A\210l\220\014\021p\004\n\r\210\206\335\342@A\250\2560\271\305\334\221N\024$+uF6\300";
-    PyObject *data = __Pyx_DecompressString(cstring, 755, 2);
+    const struct { const unsigned int length: 10; } index[] = {{1},{179},{1},{8},{20},{1},{1},{1},{1},{20},{1},{1},{18},{1},{9},{5},{7},{18},{3},{8},{16},{13},{5},{1},{7},{9},{8},{10},{1},{8},{1},{12},{12},{3},{1},{12},{1},{7},{3},{12},{10},{8},{6},{5},{724}};
+    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (752 bytes) */
+const char* const cstring = "BZh91AY&SY\336\303\267g\000\000\206\177\373\377\317\377\236u\203?@\277)~\240\277\377\377\340@@@@@@@\000@@@\000@\000@\002\234\255mA\215a\244\230\232\236\223\022\001\247\232\232OP\001\246\020\000\000h\0004z\207\251\350\365\003I\221=\010#\324\311\264\222~\251\240\365=@dh\014\203@\000\000\001\265082\r\032\000\311\246!\246\203 \3040\201\2404bb4\000\000$\223H\202bi\251\264\rG\351M\r4\304\304\310\321\223jh\3652d\361#\000\032\2365IJ#,W0\206\024\260\241\226,f@\212\246\2264N\211\343\002P\024\243\0141`,#,\034\010\260E\301\026D\351<\216\212\211Q\025]\021\212\314u\200\200\220\260\240\223\244\005\272P\310\035\001~S\315nm\337i\366\321\376u|!\250\024>\371\334\226Zu\221\2320\303\t\200\313\265\331\361\275\034\254\257\255z\276\232\211PU\017C\221L:\373\360\270\023v\025\006\221(\342\275\t'\231\340\220\222\361=w\377\224\t\304DG\324\317\207N^\352>-\023P\025!\177+\301'\230\254\234\264\320CY\200\024\250g@\314k8|(\350\305\2616F\246B\263\232S\022\034p\022\201\251N\221O\327\006\255\346\274W\331c]CJ\230\374UHk\272#`\022Hb\332\303E\203\207\n\355\330\252 g\341c\000P\275,uR,\020\311\024*\241M\326\014-+\333\261s\304U\212\tP\332\231a5\261\337:\216q\001\205X\003\024\210\320Zg\311\236\020\312B7@\301\242\343\3264a\301tr\277\032\325\006i\350H\2016\014m\200\231\340\024\347\002\215\262F\355\030\222\234\234\306\314\335Y\227q\016\203t\303(cN\346?\256\37230\014\211z\310:\335\227\325\227\203:\334xJ\201_-\222R\215/\223\205\322\243M\t\254bE\245\204\262,\346p\274\216\267\035\216\014\212j\"\201\003\202\342a\t\227 \213\303\247Q+\211\207\0205\016\2127\r\275\025\326\353\004\215\201\366\005\310v\001|q\n\256\013Jk\rl\244Um\223\305;:j\352\250\201G)\204\205\0012\211q\203B\255]\272Y\226OT\322p\240\271\314\014#\311q\"\360\027\312B\315\266\030\005wl,{\223\352\245\316\214\210\300\031\341\320x!\216>\236\213Q8\003e_W\215.\240\353\370%t\214\223\207\022\373]K\265[\013\375\277@\230\307\0050`'\234}0\323\361\202\270\274\213k\020Y\302\200\030\"\315\302W\200\355\216\325\262\262\005\360.\331\033\005\356\331\245K[\375\205\350\256\320+""\221\214_6\256A0\344\006\030O\005\234@f\327\034\220\202w\204uY\306\"\317$\241\216Aw$S\205\t\r\354;vp";
+    PyObject *data = __Pyx_DecompressString(cstring, 752, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (627 bytes) */
-const char* const cstring = "x\332\255R\317O\023A\024\006\001m\244H+5\036\324dJ\214\234hRD\303\315\320\202\t!!\375!!\236&\263\273S:v;\263\235\231\245\335\233\3079\316q\216{\354\221?\305\343\036\373'\360'\370\026\211V\214\201D7\331\311\367\366}\357{\337{;\265\023\241)\322}\242Q3\321}\301\021S(\240!\363\250$\232\206\tRZ2_S\231\2238j\035\266\266w\367v\021\341\001\222\364\013\365\265B*\366\374\220(E\025\022=\344\305,\324\214#\235DT\325\320Q\017%\"F\234\322\000i\201\"\340\315\027\350>\345HQ\235\003\264E8\027\232h&8\206r\306\317\267P\300$4a\0274\257\376HBEk\037H\020` R\246\272\243\230H\272\2575\361\0074\250E\311\244q|\322\302\270\225L\340=\000\343\370\204Nt\207\366\332\035\242\022\3563Q\363\205\02418\244\312\363\230\352\213\350\200IO\020\031xIS\204B\372!\3440\003\013\222\370\324\003e_\204\030\367b\356c|\273%|\300?\005\231\246C5\030\200o\220\034pv\336\327\0000\036\022P\203g(\2028\244\030C\300\311\020@\024\2211\007J#\004\261\033|\326\007\231HD#\214\241S\370\203(\245\020\003HJ1\306\030\326uS\017(\240=\022\207\032cM\025\234\027$\214\251\032\347\032\337\026^\270\372\325\343\205\225\302\327\211Q\266\232\0256l}\226\037\331r\301\254\230S[\005XX5{v\307\266\263b\331\276tm\347\245\213i\371\267`\366\327LV(\232\246\221v\036\254\232\035\323\265\313\266a\003\267\351\232N\247\365\254\270nb\273o;v\344\226\334[G\262\322s;\272*\3149{f\333\263\353c\336\331\232\371l\211\225\256\354\252\267\202\177i\373\360\256\205\254\231\263\233\252\305[\301\377\237\266d\037\331\211S\351\366tt\357\321\017\354\003;\017\236\030\317.\331] T\\\007\264^\247$+V\354!\3607\335\276k\347\206.l\027\006(m\330\367n\303\035\247j\372\346r\351\262\236U\340\206d\245\353\237Z\261\247\256\232/\247d\306\266\357\374\364\325\224\314\356\273\226?-\021\330\317S\270W\237\256]4\334\035\226\216\322\356\364\341\324\277,\377\262\264n\264}\347\026sKES\377\016g4\305\025";
-    PyObject *data = __Pyx_DecompressString(cstring, 627, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (631 bytes) */
+const char* const cstring = "x\332\255RMO\0331\020-\345\243\221\010%)i+\365CrPUND\n\245\025\267\212\004*!$\224\204\"\324\223\345\335u\210\233\215\275\261\275${\353\321G\037}\334c\216\374\224\036\367\230\237\300O\350,\2406\245\252@jWZ\357\233\2357o\236\307\256\035\tM\221\356\021\215\232\211\356\t\216\230B\001\r\231G%\3214L\220\322\222\371\232\312\234\304Qk\277\265\271\275\263\215\010\017\220\244_\251\257\025R\261\347\207D)\252\220\350\"/f\241f\034\351$\242\252\206\016\272(\0211\342\224\006H\013\024\001o\266@\367(G\212\352\034\240\r\302\271\320D3\3011\2243~\266\201\002&\241\t;\247y\365'\022*Z\373H\202\000\003\2212u<\214\211\244\273Z\023\277O\203Z\224\214\033\207G-\214[\311\030\336=0\216\217\350Xwh\267\335!*\341>\0235_H\021\203C\252<\217\251\236\210\366\230\364\004\221\201\2274E(\244\037B\0163\260 \211O=P\366E\210q7\346>\306\267[\302\017\374S\220i:P\375>\370\006\311>gg=\r\000\343\001\0015x\006\"\210C\2121\004\234\014\000D\021\031q\2404B\020\273\301\247=\220\211D4\304\030:\205\327D)\205\350CR\212\021\3060\256\233z@\001\355\2228\324\030k\252`='aL\325(\327\370\376\340\205\253^.=X|f\333\371\247\360ml\224\255f\2055[\237\346K\266P0\213\346\304V\001\026\226\315\216\335\262\355\254X\266\257\\\333y\351\\Z\376-\230\3765\223\025\212\246i\244\235\005\313f\313\034\333\005\333\260\201[wM\247\323zV\\5\261\335\265\035;t\363\356\235#Y\351\271\035^\026f\234=\265\355\351\3252\353l\305|\261\304JWv\325[\301\277\264\275s +\346\364\246j\356V\360\377w[\262\217\354\330\251ts2\274\367\326\367\354C;\013\036\033\317\316\333m T\\\007\264\336\244$+V\354>\360\327\335\256k\347\206\316\3551l\240\264f?\2705w\230\252\311\333\213\371\213zVy\351\352Y\351\352P+\366\344\372\322\224\314\310\366\234\237\276\236\220\351}\307\362\247%\002\363y\002\367\352\363\225\213\206\273\303\322Az<Y\232\370\027\345_\226V\215\266\357\335\\n\251h\352?\000\261\307\306\362";
+    PyObject *data = __Pyx_DecompressString(cstring, 631, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (1192 bytes) */
-const char* const bytes = ".Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.?add_noteisSquareAttacked.pyxBKNP__Pyx_PyDict_NextRefQRasyncio.coroutinesbbishopDirboardbyColorcline_in_tracebackcol__func__isSquareAttacked_is_coroutineitemskkingDirknightDir__main____module__n__name__ppawnDirBlackpawnDirWhitepopq__qualname__rrookDirrow__set_name__setdefault__test__valueswhite\320\000\033\2301\360\n\000\005\010\200x\210s\220!\330\010\023\2201\340\010\023\2201\330\004\010\210\005\210U\220!\2201\330\010\013\2108\2202\220Q\330\014\021\220\034\230Q\230b\240\001\240\021\330\014\021\220\034\230Q\230b\240\001\240\021\340\014\021\220\034\230Q\230b\240\001\240\021\330\014\021\220\034\230Q\230b\240\001\240\021\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\010\000\005\010\200x\210s\220!\330\010\025\220Q\340\010\025\220Q\340\004\010\210\005\210U\220!\2201\330\010\r\210Y\220a\220r\230\021\230!\330\010\r\210Y\220a\220r\230\021\230!\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\006\000\005\010\200x\210s\220!\330\010\023\2201\340\010\023\2201\330\004\010\210\005\210U\220!\2201\330\010\r\210W\220A\220R\220q\230\001\330\010\r\210W\220A\220R\220q\230\001\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\010\000\005\010\200x\210s\220!\330\010\025\220Q\340\010\025\220Q\340\004\020\220\007\220x\230s\240-\250q\340\004\010\210\005\210U\220!\2201\330\010\r\210Y\220a\220r\230\021\230!\330\010\r\210Y\220a\220r\230\021\230!\330\010\014\210D\220\002\220!\330\010\014\210D""\220\002\220!\330\010\016\210b\220\003\2204\220r\230\024\230R\230s\240$\240a\330\014\024\220E\230\021\230\"\230A\230Q\330\014\017\210v\220S\230\001\330\020\023\2206\230\023\230K\240s\250&\260\003\2601\330\024\033\2301\330\020\021\330\014\021\220\024\220U\230!\360\006\000\005\020\210w\220h\230c\240\035\250a\340\004\010\210\005\210U\220!\2201\330\010\r\210W\220A\220R\220q\230\001\330\010\r\210W\220A\220R\220q\230\001\330\010\014\210D\220\002\220!\330\010\014\210D\220\002\220!\330\010\016\210a\210r\220\022\2202\220T\230\021\230\"\230B\230a\330\014\024\220E\230\021\230\"\230A\230Q\330\014\017\210v\220S\230\001\330\020\023\2206\230\023\230I\240S\250\006\250c\260\021\330\024\033\2301\330\020\021\330\014\017\210t\2205\230\001\360\006\000\005\014\2101";
+    #else /* compression: none (1199 bytes) */
+const char* const bytes = ".Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.?add_noteisSquareAttacked.pyxBKNP__Pyx_PyDict_NextRefQRasyncio.coroutinesbbishopDirboardbyColorcline_in_tracebackcol__func__isSquareAttacked_is_coroutineitemskkingDirknightDir__main____module__n__name__ppawnDirBlackpawnDirWhitepopq__qualname__rrookDirrow__set_name__setdefault__test__valueswhite\320\000\032\230!\360\006\000\005\026\220Q\360\006\000\005\010\200x\210s\220!\330\010\023\2201\340\010\023\2201\330\004\010\210\005\210U\220!\2201\330\010\013\2108\2202\220Q\330\014\021\220\034\230Q\230b\240\001\240\021\330\014\021\220\034\230Q\230b\240\001\240\021\340\014\021\220\034\230Q\230b\240\001\240\021\330\014\021\220\034\230Q\230b\240\001\240\021\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\010\000\005\010\200x\210s\220!\330\010\025\220Q\340\010\025\220Q\340\004\010\210\005\210U\220!\2201\330\010\r\210Y\220a\220r\230\021\230!\330\010\r\210Y\220a\220r\230\021\230!\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\006\000\005\010\200x\210s\220!\330\010\023\2201\340\010\023\2201\330\004\010\210\005\210U\220!\2201\330\010\r\210W\220A\220R\220q\230\001\330\010\r\210W\220A\220R\220q\230\001\330\010\014\210C\210r\220\021\330\010\014\210C\210r\220\021\330\010\013\2102\210S\220\004\220B\220d\230\"\230C\230t\2401\330\014\017\210u\220A\220R\220q\230\003\2303\230a\330\020\027\220q\360\010\000\005\010\200x\210s\220!\330\010\025\220Q\340\010\025\220Q\340\004\020\220\007\220x\230s\240-\250q\340\004\010\210\005\210U\220!\2201\330\010\r\210Y\220a\220r\230\021\230!\330\010\r\210Y\220a\220r\230\021\230!\330\010\014\210D\220""\002\220!\330\010\014\210D\220\002\220!\330\010\016\210b\220\003\2204\220r\230\024\230R\230s\240$\240a\330\014\024\220E\230\021\230\"\230A\230Q\330\014\017\210v\220S\230\001\330\020\023\2206\230\023\230K\240s\250&\260\003\2601\330\024\033\2301\330\020\021\330\014\021\220\024\220U\230!\360\006\000\005\020\210w\220h\230c\240\035\250a\340\004\010\210\005\210U\220!\2201\330\010\r\210W\220A\220R\220q\230\001\330\010\r\210W\220A\220R\220q\230\001\330\010\014\210D\220\002\220!\330\010\014\210D\220\002\220!\330\010\016\210a\210r\220\022\2202\220T\230\021\230\"\230B\230a\330\014\024\220E\230\021\230\"\230A\230Q\330\014\017\210v\220S\230\001\330\020\023\2206\230\023\230I\240S\250\006\250c\260\021\330\024\033\2301\330\020\021\330\014\017\210t\2205\230\001\360\006\000\005\014\2101";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
@@ -4477,7 +4488,7 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   {
     const __Pyx_PyCode_New_function_description descr = {4, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 20};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_board, __pyx_mstate->__pyx_n_u_row, __pyx_mstate->__pyx_n_u_col, __pyx_mstate->__pyx_n_u_byColor};
-    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_isSquareAttacked_pyx, __pyx_mstate->__pyx_n_u_isSquareAttacked, __pyx_mstate->__pyx_kp_b_iso88591_1_xs_1_1_U_1_82Q_Qb_Qb_Qb_Qb_Cr, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_isSquareAttacked_pyx, __pyx_mstate->__pyx_n_u_isSquareAttacked, __pyx_mstate->__pyx_kp_b_iso88591_Q_xs_1_1_U_1_82Q_Qb_Qb_Qb_Qb_Cr, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;

@@ -30,7 +30,7 @@ rookJsonPath   = piece_paths["r"]
 queenJsonPath  = piece_paths["q"]
 kingJsonPath   = piece_paths["k"]
 
-kingEndPosition = [
+kingEndPosition = np.array([
     [-50, -30, -30, -30, -30, -30, -30, -50],
     [-30, -10, -10, -10, -10, -10, -10, -30],
     [-30, -10,  20,  20,  20,  20, -10, -30],
@@ -39,7 +39,7 @@ kingEndPosition = [
     [-30, -10,  20,  20,  20,  20, -10, -30],
     [-30, -10, -10, -10, -10, -10, -10, -30],
     [-50, -30, -30, -30, -30, -30, -30, -50]
-    ]
+    ])
 
 
 castling_rights = {
@@ -50,6 +50,8 @@ castling_rights = {
     'black_rook_a_moved': False,
     'black_rook_h_moved': False
 }
+whiteKingCastled = False
+blackKingCastled = False
 
 enPassantSquare = None
 enPassantColor = None
@@ -222,7 +224,7 @@ def movePiece(board, fromSquare, toSquare):#This is for user to use
 
 
 def doMove(board,fromSquare,toSquare):#This is for engine simulation
-    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory,whiteKingCastled,blackKingCastled
     setEnPassant = False
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
@@ -239,7 +241,10 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
                 'pawnPosition':{'white':pawnPosition['white'].copy(),'black':pawnPosition['black'].copy()},
                 'isBlackQueenExist':isBlackQueenExist,
                 'isWhiteQueenExist':isWhiteQueenExist,
-                'special': None
+                'special': None,
+                'whiteKingCastled':whiteKingCastled,
+                'blackKingCastled':blackKingCastled
+                
                 }
     
 
@@ -316,18 +321,22 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
         if fromSquare == 'e1' and toSquare == 'g1' and board[7][7] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_h_moved']==False:
             snapshot['special'] = 'wk'
             board[7][5] = 'R'; board[7][7] = '.'
+            whiteKingCastled = True
             
         elif fromSquare == 'e1' and toSquare == 'c1' and board[7][0] == 'R' and castling_rights['white_king_moved']==False and castling_rights['white_rook_a_moved']==False:
             snapshot['special'] = 'wq'
             board[7][3] = 'R'; board[7][0] = '.'
+            whiteKingCastled = True
         castling_rights['white_king_moved'] = True
     elif piece == 'k':
         if fromSquare == 'e8' and toSquare == 'g8' and board[0][7] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_h_moved']:
             snapshot['special'] = 'bk'
             board[0][5] = 'r'; board[0][7] = '.'
+            blackKingCastled = True
         elif fromSquare == 'e8' and toSquare == 'c8' and board[0][0] == 'r' and not castling_rights['black_king_moved'] and not castling_rights['black_rook_a_moved']:
             snapshot['special'] = 'bq'
             board[0][3] = 'r'; board[0][0] = '.'
+            blackKingCastled = True
         castling_rights['black_king_moved'] = True
 
     #Global status change
@@ -352,7 +361,8 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
 
 
 def undoMove(board):
-    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor
+    global pawnPosition,castling_rights,moveHistory,whiteKingCastled,blackKingCastled
 
     if len(moveHistory) == 0:
         return
@@ -366,22 +376,19 @@ def undoMove(board):
     movedPiece = snapshot["movedPiece"]
     capturedPiece = snapshot["capturedPiece"]
 
-    #Restore Enpassant
+    # 1) Restore board (including en-passant restores + castling rook move)
     if movedPiece in ('P','p') and toSq == snapshot['enPassantSquare']:
         if movedPiece == 'P' and snapshot['enPassantColor'] == 'black':
             board[fromRow][toCol] = 'p'
         elif movedPiece == 'p' and snapshot['enPassantColor'] == 'white':
             board[fromRow][toCol] = 'P'
-    
-    #Restore Castling
-    sp = snapshot['special']
 
+    sp = snapshot['special']
     if sp == 'wk':
         board[7][4] = 'K'
         board[7][6] = '.'
         board[7][7] = 'R'
         board[7][5] = '.'
-
     elif sp == 'wq':
         board[7][4] = 'K'
         board[7][2] = '.'
@@ -393,94 +400,42 @@ def undoMove(board):
         board[0][6] = '.'
         board[0][7] = 'r'
         board[0][5] = '.'
-
     elif sp == 'bq':
         board[0][4] = 'k'
         board[0][2] = '.'
         board[0][0] = 'r'
         board[0][3] = '.'
 
-    # Restore board
+    # Restore the moved piece and captured piece
     board[fromRow][fromCol] = movedPiece
     board[toRow][toCol] = capturedPiece
-    
-    # Restore global variable
+
+    # 2) Restore castling rights
     castling_rights.clear()
     castling_rights.update(snapshot["rights"])
 
+    # 3) Restore en passant
     enPassantSquare = snapshot["enPassantSquare"]
     enPassantColor = snapshot["enPassantColor"]
 
+    # 4) Restore pawnPosition sets
     pawnPosition['white'] = snapshot['pawnPosition']['white'].copy()
     pawnPosition['black'] = snapshot['pawnPosition']['black'].copy()
 
+    # 5) Restore queens
     isWhiteQueenExist = snapshot["isWhiteQueenExist"]
     isBlackQueenExist = snapshot["isBlackQueenExist"]
-    
+
+    # 6) Restore castled flags
+    whiteKingCastled = snapshot["whiteKingCastled"]
+    blackKingCastled = snapshot["blackKingCastled"]
     
     
 
 
 
     
-# def isSquareAttacked(board, row, col, byColor):
-#     directions_bishop = [(-1,-1), (-1,1), (1,-1), (1,1)]
-#     directions_rook = [(-1,0), (1,0), (0,-1), (0,1)]
-#     directions_knight = [(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]
-#     directions_king = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
 
-    
-#     if byColor == 'white':
-#         pawn_dirs = [(-1,-1), (-1,1)]
-#         pawn_char = 'P'
-#     else:
-#         pawn_dirs = [(1,-1), (1,1)]
-#         pawn_char = 'p'
-#     for dr, dc in pawn_dirs:
-#         r, c = row + dr, col + dc
-#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == pawn_char:
-#             return True
-
-    
-#     knight_char = 'N' if byColor == 'white' else 'n'
-#     for dr, dc in directions_knight:
-#         r, c = row + dr, col + dc
-#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == knight_char:
-#             return True
-
-    
-#     king_char = 'K' if byColor == 'white' else 'k'
-#     for dr, dc in directions_king:
-#         r, c = row + dr, col + dc
-#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == king_char:
-#             return True
-
-    
-#     bishop_char = 'B' if byColor == 'white' else 'b'
-#     queen_char = 'Q' if byColor == 'white' else 'q'
-#     for dr, dc in directions_bishop:
-#         r, c = row + dr, col + dc
-#         while 0 <= r < 8 and 0 <= c < 8:
-#             piece = board[r][c]
-#             if piece != '.':
-#                 if piece == bishop_char or piece == queen_char:
-#                     return True
-#                 break
-#             r += dr; c += dc
-
-    
-#     rook_char = 'R' if byColor == 'white' else 'r'
-#     for dr, dc in directions_rook:
-#         r, c = row + dr, col + dc
-#         while 0 <= r < 8 and 0 <= c < 8:
-#             piece = board[r][c]
-#             if piece != '.':
-#                 if piece == rook_char or piece == queen_char:
-#                     return True
-#                 break
-#             r += dr; c += dc
-
-#     return False    
 
 
 def generatePawnMoves(board, square):
@@ -600,24 +555,24 @@ def generateKingMoves(board, square):
         # 短易位
         if not castling_rights['white_rook_h_moved'] and board[7][7] == 'R':
             if board[7][5] == '.' and board[7][6] == '.':
-                if not isSquareAttacked(board, 7, 5, 'black') and not isSquareAttacked(board, 7, 6, 'black'):
+                if (isSquareAttacked(board, 7, 5, 'black')==0) and (isSquareAttacked(board, 7, 6, 'black')==0):
                     potentialMove.append('g1')
         # 长易位
         if not castling_rights['white_rook_a_moved'] and board[7][0] == 'R':
             if board[7][1] == '.' and board[7][2] == '.' and board[7][3] == '.':
-                if not isSquareAttacked(board, 7, 3, 'black') and not isSquareAttacked(board, 7, 2, 'black'):
+                if (isSquareAttacked(board, 7, 3, 'black')==0) and (isSquareAttacked(board, 7, 2, 'black')==0):
                     potentialMove.append('c1')
 
     if piece == 'k' and not castling_rights['black_king_moved'] and not isKingChecked(board, 'black'):
         # 短易位
         if not castling_rights['black_rook_h_moved'] and board[0][7] == 'r':
             if board[0][5] == '.' and board[0][6] == '.':
-                if not isSquareAttacked(board, 0, 5, 'white') and not isSquareAttacked(board, 0, 6, 'white'):
+                if (isSquareAttacked(board, 0, 5, 'white')==0) and (isSquareAttacked(board, 0, 6, 'white')==0):
                     potentialMove.append('g8')
         # 长易位
         if not castling_rights['black_rook_a_moved'] and board[0][0] == 'r':
             if board[0][1] == '.' and board[0][2] == '.' and board[0][3] == '.':
-                if not isSquareAttacked(board, 0, 3, 'white') and not isSquareAttacked(board, 0, 2, 'white'):
+                if (isSquareAttacked(board, 0, 3, 'white')==0) and (isSquareAttacked(board, 0, 2, 'white')==0):
                     potentialMove.append('c8')
 
     return potentialMove
@@ -661,7 +616,7 @@ def isKingChecked(board, color):
             if board[row][col] == kingChar:
                 kingRow, kingCol = row, col
                 opponentColor = 'black' if color == 'white' else 'white'
-                return isSquareAttacked(board, kingRow, kingCol, opponentColor)
+                return (isSquareAttacked(board, kingRow, kingCol, opponentColor)>0)
     return False
 
 def generateAlllegalMoves(board, color):
@@ -705,7 +660,7 @@ def generateAlllegalMoves(board, color):
 
     
 def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
-    global isBlackQueenExist,isWhiteQueenExist,pawnPosition
+    global isBlackQueenExist,isWhiteQueenExist,pawnPosition,whiteKingCastled,blackKingCastled
     
     score = 0
     
@@ -762,7 +717,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                 
                 #Calculating position score, which has the coefficient of 0.8
                 if not isEndGame:
-                    piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row][col]
+                    piecePositionScore = pstScale*pieceCoefficientInOpen[piece]*piecePositionMap[piece][row,col]
                     cap = piecePositionScoreCap[piece.lower()]
                     if piecePositionScore > cap:
                         piecePositionScore = cap
@@ -770,11 +725,11 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                         piecePositionScore = -cap
                 else:
                     if piece=='K':
-                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['Ke'][row][col]
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['Ke'][row,col]
                     elif piece=='k':
-                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['ke'][row][col]
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap['ke'][row,col]
                     else:
-                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row][col]
+                        piecePositionScore = pstScale*pieceCoefficientInEnd[piece]*piecePositionMap[piece][row,col]
                     cap = piecePositionScoreCap[piece.lower()]
                     if piecePositionScore > cap:
                         piecePositionScore = cap
@@ -852,8 +807,8 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                     c = col+dc
                     if (0<=r<8) and (0<=c<8):
                         pieceAround = board[r][c]
-                        pieceAroundKingScore = {'P':10,'N':3,'B':3,'R':0.5,'Q':-2,
-                                                'p':-10,'n':-3,'b':-3,'r':-0.5,'q':-2,}
+                        pieceAroundKingScore = {'P':10,'N':3,'B':3,'R':0.5,'Q':0,
+                                                'p':-10,'n':-3,'b':-3,'r':-0.5,'q':0,}
                         if piece == 'K':
                             if pieceAround != '.'and not isOpponent(piece,pieceAround):
                                 friPieceAroundWhite += 1
@@ -871,8 +826,10 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                     if friPieceAroundBlack > 3:
                         score += (friPieceAroundBlack - 3) * 0.15
 
-                centerControl = computeCenterControl(board)
-    
+    centerControl = computeCenterControl(board)
+    #reward castle
+    if whiteKingCastled: score += 40*(1.0 if not isEndGame else 0.2)
+    if blackKingCastled: score -= 40*(1.0 if not isEndGame else 0.2)
     
     
     score += centerControl
@@ -894,8 +851,8 @@ def importPositionMap():
             arr = np.nan_to_num(arr, nan=0.0)
             arr -= np.mean(arr)
             
-            piecePositionMap[piece] = arr.tolist()
-            piecePositionMap[piece.lower()] = arr[::-1].tolist()
+            piecePositionMap[piece] = arr
+            piecePositionMap[piece.lower()] = arr[::-1]
     piecePositionMap['Ke']=kingEndPosition
     piecePositionMap['ke']=kingEndPosition[::-1]
     return piecePositionMap
@@ -958,15 +915,8 @@ def computePawnStructure(board):
 
 def computeCenterControl(board):
     global centerWeights
-    # for row in range(8):
-    #     for col in range(8):
-    #         sign = 1
-    #         piece = board[row][col]
-    #         if piece.islower():
-    #             sign = -1
-            #Determine if there is a piece
-    return 0
-
+    score = 0
+    return score
 
 
 
@@ -1014,7 +964,6 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
             if beta<=alpha:
                 break
         return minEval + rootMobility
-    
     
 # ────────────────────────────────────────────────────
 # Level 1: Root (MAX) α=-∞ β=+∞
@@ -1075,6 +1024,7 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
 # └── Root: MAX 取 max(5,4,3)=5 → ✅ 最优值 = 5
 # ────────────────────────────────────────────────────
 
+
         
 def findBestMove(board,color,depth,piecePositionMap):
     bestMove = None
@@ -1131,7 +1081,6 @@ def main():
         engineSide = 'both'
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
-        startTime = time.time()
         if engineSide == 'both' or color == engineSide:
             moveRecommend = findBestMove(board,color,3,piecePositionMap)
             if moveRecommend is None:
@@ -1142,10 +1091,6 @@ def main():
             printBoard(board)
             numOfSteps += 1 
             continue 
-        endTime = time.time()
-        diff = endTime-startTime
-        print(diff)
-        
         
         move = input("请输入你的走法（例如 e2 e4，或输入 q 退出）：")
         if move.lower() == 'q':
@@ -1171,6 +1116,76 @@ main()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+# def isSquareAttacked(board, row, col, byColor):
+#     directions_bishop = [(-1,-1), (-1,1), (1,-1), (1,1)]
+#     directions_rook = [(-1,0), (1,0), (0,-1), (0,1)]
+#     directions_knight = [(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]
+#     directions_king = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+
+    
+#     if byColor == 'white':
+#         pawn_dirs = [(-1,-1), (-1,1)]
+#         pawn_char = 'P'
+#     else:
+#         pawn_dirs = [(1,-1), (1,1)]
+#         pawn_char = 'p'
+#     for dr, dc in pawn_dirs:
+#         r, c = row + dr, col + dc
+#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == pawn_char:
+#             return True
+
+    
+#     knight_char = 'N' if byColor == 'white' else 'n'
+#     for dr, dc in directions_knight:
+#         r, c = row + dr, col + dc
+#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == knight_char:
+#             return True
+
+    
+#     king_char = 'K' if byColor == 'white' else 'k'
+#     for dr, dc in directions_king:
+#         r, c = row + dr, col + dc
+#         if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == king_char:
+#             return True
+
+    
+#     bishop_char = 'B' if byColor == 'white' else 'b'
+#     queen_char = 'Q' if byColor == 'white' else 'q'
+#     for dr, dc in directions_bishop:
+#         r, c = row + dr, col + dc
+#         while 0 <= r < 8 and 0 <= c < 8:
+#             piece = board[r][c]
+#             if piece != '.':
+#                 if piece == bishop_char or piece == queen_char:
+#                     return True
+#                 break
+#             r += dr; c += dc
+
+    
+#     rook_char = 'R' if byColor == 'white' else 'r'
+#     for dr, dc in directions_rook:
+#         r, c = row + dr, col + dc
+#         while 0 <= r < 8 and 0 <= c < 8:
+#             piece = board[r][c]
+#             if piece != '.':
+#                 if piece == rook_char or piece == queen_char:
+#                     return True
+#                 break
+#             r += dr; c += dc
+
+#     return False    
 
 # def computeMaterial(board):
 #     pieceValue = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 0,

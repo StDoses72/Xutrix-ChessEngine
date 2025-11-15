@@ -17,11 +17,10 @@ kingDir = (
 bishopDir = ((1, 1), (-1, 1), (-1, -1), (1, -1))
 rookDir   = ((0, 1), (1, 0), (-1, 0), (0, -1))
 
-cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
+cpdef int isSquareAttacked(list board, int row, int col, str byColor):
     cdef int dr, dc, r, c
     cdef str piece,pawnChar,knightChar,kingChar,bishopChar,queenChar,rookChar
-    cdef int numOfWhiteAttack, numOfBlackAttack
-    cdef float whiteControlScore, blackControlScore
+    cdef int count = 0
 
 
     if byColor == 'white':
@@ -39,7 +38,7 @@ cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
         c = dc + col
         if 0 <= r < 8 and 0 <= c < 8:
             if board[r][c] == pawnChar:
-                return True
+                count+=1
     
 
 
@@ -55,7 +54,7 @@ cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
         c = dc + col
         if 0 <= r < 8 and 0 <= c < 8:
             if board[r][c] == knightChar:
-                return True
+                count+=1
 
 
     if byColor == 'white':
@@ -69,7 +68,7 @@ cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
         c = dc + col
         if 0 <= r < 8 and 0 <= c < 8:
             if board[r][c] == kingChar:
-                return True
+                count+=1
         
         
 
@@ -89,7 +88,7 @@ cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
             piece = board[r][c]
             if piece != '.':
                 if piece == bishopChar or piece == queenChar:
-                    return True
+                    count+=1
                 break
             r += dr; c += dc
 
@@ -105,12 +104,12 @@ cpdef bint isSquareAttacked(list board, int row, int col, str byColor):
             piece = board[r][c]
             if piece != '.':
                 if piece == rookChar or piece == queenChar:
-                    return True
+                    count+=1
                 break
             r+=dr; c += dc
 
 
-    return False
+    return count
 
 
 
