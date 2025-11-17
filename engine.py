@@ -832,7 +832,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     if blackKingCastled: score -= 40*(1.0 if not isEndGame else 0.2)
     
     
-    score += centerControl
+    score += centerControl*(0.25 if not isEndGame else 0.1)
     return score
 
 
@@ -916,6 +916,16 @@ def computePawnStructure(board):
 def computeCenterControl(board):
     global centerWeights
     score = 0
+    mainCenterSquare = {(3,3),(3,4),(4,3),(4,4)}
+    semiCenterSquare = {(2,2),(2,3),(2,4),(2,5),(3,2),(3,5),(4,2),(4,5),(5,2),(5,3),(5,4),(5,5)}
+    for row,col in mainCenterSquare:
+        whiteControl = isSquareAttacked(board,row,col,'white')
+        blackControl = isSquareAttacked(board,row,col,'black')
+        score += whiteControl-blackControl
+    for row,col in semiCenterSquare:
+        whiteControl = isSquareAttacked(board,row,col,'white')*0.3
+        blackControl = isSquareAttacked(board,row,col,'black')*0.3
+        score += whiteControl-blackControl
     return score
 
 
@@ -1082,13 +1092,16 @@ def main():
     while True:
         color = 'white' if numOfSteps%2 == 0 else 'black'
         if engineSide == 'both' or color == engineSide:
+            startTime = time.time()
             moveRecommend = findBestMove(board,color,3,piecePositionMap)
             if moveRecommend is None:
                 print('Mated')
                 break
             print(moveRecommend)
             doMove(board,moveRecommend[0],moveRecommend[1])
+            endTime = time.time()
             printBoard(board)
+            print(endTime-startTime)
             numOfSteps += 1 
             continue 
         
