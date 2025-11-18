@@ -7,6 +7,13 @@ from collections import deque
 import random
 import time
 from isSquareAttacked import isSquareAttacked
+import logging
+
+
+
+
+numOfSteps = 0
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 piece_files = {
@@ -77,6 +84,23 @@ centerWeights = np.array([
 
 
 moveHistory = deque()
+
+
+
+# 设置日志路径（与主脚本同目录）
+log_path = os.path.join(BASE_DIR, "engine_debug.log")
+
+# 初始化日志系统
+logging.basicConfig(
+    filename=log_path,
+    filemode='w',  # 每次运行清空旧日志
+    level=logging.DEBUG,
+    format='[%(asctime)s] %(message)s',
+    datefmt='%H:%M:%S'
+)
+
+
+
 
 
 
@@ -568,7 +592,7 @@ def generateKingMoves(board, square):
         if not castling_rights['black_rook_h_moved'] and board[0][7] == 'r':
             if board[0][5] == '.' and board[0][6] == '.':
                 if (isSquareAttacked(board, 0, 5, 'white')==0) and (isSquareAttacked(board, 0, 6, 'white')==0):
-                    potentialMove.append('g8')
+                    potentialMove.append('g8')  
         # 长易位
         if not castling_rights['black_rook_a_moved'] and board[0][0] == 'r':
             if board[0][1] == '.' and board[0][2] == '.' and board[0][3] == '.':
@@ -656,11 +680,20 @@ def generateAlllegalMoves(board, color):
         
     return legalMoves
 
-
+def generateAllCaptureMoves(board,color):
+    moves = generateAlllegalMoves(board,color)
+    captureMoves = []
+    for fromSquare,toSquare in moves:
+        fromRow,fromCol = algebraicToIndex(fromSquare)
+        toRow,toCol = algebraicToIndex(toSquare)
+        if (board[toRow][toCol] != '.') and isOpponent(board[fromRow][fromCol],board[toRow][toCol]):
+            if SEE(board, fromSquare, toSquare) >= 0:
+                captureMoves.append((fromSquare,toSquare))
+    return captureMoves
 
     
-def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
-    global isBlackQueenExist,isWhiteQueenExist,pawnPosition,whiteKingCastled,blackKingCastled
+def evaluateBoard(board,piecePositionMap,mobilityHint=None):
+    global isBlackQueenExist,isWhiteQueenExist,pawnPosition,whiteKingCastled,blackKingCastled,centerWeights,numOfSteps
     
     score = 0
     
@@ -686,20 +719,14 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
     #For mobility computation
     pieceCoefficientMap = {'N':1.0,'B':1.0,'P':0.5,'R':0.8,'K':(0.3 if not isEndGame else 1),'Q':0.6}
     mobilityCap = {
-    'N': 30,   
-    'B': 40,   
-    'R': 25,   
-    'Q': 20,   
-    'K': 15,   
-    'P': 10    
+    'N': 12,   
+    'B': 15,   
+    'R': 10,   
+    'Q': 8,   
+    'K': 5,   
+    'P': 3    
 }
-    #Calculating the amount of move
-
-
-    numWhite = len(generateAlllegalMoves(board,'white'))
-    numBlack = len(generateAlllegalMoves(board,'black'))
-    score += (numWhite-numBlack)*(0.6 if not isEndGame else 0.2)
-    #return 0
+    
     
     #Compute pawn structure score
     pawnStructureScore = computePawnStructure(board)
@@ -740,7 +767,7 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                 elif piece.islower():
                     score -= piecePositionScore*0.8
 
-            #Compute for mobility score, which has the coefficient of (0.6 if not isEndGame else 0.2)
+            #Compute for mobility score, which has the coefficient of (0.3 if not isEndGame else 0.1)
             fromSquare = indexToAlgebraic(row,col)
             if piece == 'P' or piece == 'p':
                 moveForPiece = generatePawnMoves(board,fromSquare)
@@ -748,45 +775,45 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                 if addingscore >= mobilityCap['P']:
                     addingscore = mobilityCap['P']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.3 if not isEndGame else 0.1)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'N' or piece == 'n':
                 moveForPiece = generateKnightMoves(board,fromSquare)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['N']:
                     addingscore = mobilityCap['N']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.3 if not isEndGame else 0.1)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'B' or piece == 'b':
                 moveForPiece = generateBishopMoves(board,fromSquare)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['B']:
                     addingscore = mobilityCap['B']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.3 if not isEndGame else 0.1)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'R' or piece == 'r':
                 moveForPiece = generateRookMoves(board,fromSquare)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['R']:
                     addingscore = mobilityCap['R']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.3 if not isEndGame else 0.1)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'Q' or piece == 'q':
                 moveForPiece = generateQueenMoves(board,fromSquare)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['Q']:
                     addingscore = mobilityCap['Q']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.3 if not isEndGame else 0.1)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'K' or piece == 'k':
                 #Kings mobility
                 moveForPiece = generateKingMoves(board,fromSquare)
@@ -794,9 +821,9 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                 if addingscore >= mobilityCap['K']:
                     addingscore = mobilityCap['K']
                 if piece.isupper():
-                    score+=addingscore*(0.6 if not isEndGame else 0.2)
+                    score+=addingscore*(0.05 if not isEndGame else 0.15)
                 else:
-                    score-=addingscore*(0.6 if not isEndGame else 0.2)
+                    score-=addingscore*(0.05 if not isEndGame else 0.15)
                     
                 #kingSafety
                 surrounding = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
@@ -807,8 +834,8 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                     c = col+dc
                     if (0<=r<8) and (0<=c<8):
                         pieceAround = board[r][c]
-                        pieceAroundKingScore = {'P':10,'N':3,'B':3,'R':0.5,'Q':0,
-                                                'p':-10,'n':-3,'b':-3,'r':-0.5,'q':0,}
+                        pieceAroundKingScore = {'P':10,'N':3,'B':3,'R':0.5,'Q':-2,
+                                                'p':-10,'n':-3,'b':-3,'r':-0.5,'q':2,}
                         if piece == 'K':
                             if pieceAround != '.'and not isOpponent(piece,pieceAround):
                                 friPieceAroundWhite += 1
@@ -825,14 +852,67 @@ def evaluateBoard(board,piecePositionMap,moves,mobilityHint=None):
                         score -= (friPieceAroundWhite - 3) * 0.15
                     if friPieceAroundBlack > 3:
                         score += (friPieceAroundBlack - 3) * 0.15
+                        
+           
+            # if piece !='.':            
+            #     # white positive, black negative
+            #     sign = 1 if piece.isupper() else -1
+            #     # Add center weight directly from lookup table
+            #     score += sign * centerWeights[row][col]*(0.3 if not isEndGame else 0.15)
+                
+    score+=computeCenterControl(board)*(0.3 if not isEndGame else 0.15)
+    centerSquare = {(3,3),(3,4),(4,3),(4,4)}
+    for pst in pawnPosition['white']:
+        trow,tcol = algebraicToIndex(pst)
+        if numOfSteps<8 and (trow,tcol) in centerSquare:
+            score+=12
+    
+    for pst in pawnPosition['black']:
+        trow,tcol = algebraicToIndex(pst)
+        if numOfSteps<8 and (trow,tcol) in centerSquare:
+            score-=12
+                
+    if not isEndGame:
+        # Knights undeveloped
+        if board[7][1] == 'N': score -= 15   # b1 knight
+        if board[7][6] == 'N': score -= 15   # g1 knight
+        if board[0][1] == 'n': score += 15
+        if board[0][6] == 'n': score += 15
 
-    centerControl = computeCenterControl(board)
+        # Bishops undeveloped
+        if board[7][2] == 'B': score -= 10   # c1 bishop
+        if board[7][5] == 'B': score -= 10   # f1 bishop
+        if board[0][2] == 'b': score += 10
+        if board[0][5] == 'b': score += 10
+
+        #Rook blocked by unmoved knight/bishop
+        if board[7][0] == 'R' and (board[7][1] == 'N' or board[7][2] == 'B'):
+            score -= 15
+        if board[7][7] == 'R' and (board[7][6] == 'N' or board[7][5] == 'B'):
+            score -= 15
+
+        if board[0][0] == 'r' and (board[0][1] == 'n' or board[0][2] == 'b'):
+            score += 15
+        if board[0][7] == 'r' and (board[0][6] == 'n' or board[0][5] == 'b'):
+            score += 15
+        
+        if board[7][4] == 'K' and not whiteKingCastled:
+            # Not Castled and Rook blocked
+            if board[7][5] == 'R' or board[7][6] == 'R' or board[7][1]=='R' or board[7][2]=='R':
+                score -= 50
+
+        if board[0][4] == 'k' and not blackKingCastled:
+            if board[0][5] == 'r' or board[0][6] == 'r' or board[0][1]=='r' or board[0][2]=='r':
+                score += 50
+
+
+
     #reward castle
-    if whiteKingCastled: score += 40*(1.0 if not isEndGame else 0.2)
-    if blackKingCastled: score -= 40*(1.0 if not isEndGame else 0.2)
+    if whiteKingCastled: score += 25*(1.0 if not isEndGame else 0.2)
+    if blackKingCastled: score -= 25*(1.0 if not isEndGame else 0.2)
     
     
-    score += centerControl*(0.25 if not isEndGame else 0.1)
+
     return score
 
 
@@ -873,11 +953,11 @@ def computePawnStructure(board):
             if (0<=surroundingRow<8) and (0<=surroundingCol<8):
                 if(board[surroundingRow][surroundingCol]=='P'):
                     if((0<=row-1<8) and (0<=col+1<8) and (board[row-1][col+1]!='p')) or ((0<=row-1<8) and (0<=col-1<8) and (board[row-1][col-1]!='p')):
-                        score +=10
+                        score +=15
                     else:
-                        score +=5
+                        score +=10
                 else:
-                    score -=5
+                    score -=10
         
         #if there is a doubled pawn in col
         for i in range(8):
@@ -897,19 +977,17 @@ def computePawnStructure(board):
             if (0<=surroundingRow<8) and (0<=surroundingCol<8):
                 if(board[surroundingRow][surroundingCol]=='p'):
                     if((0<=row+1<8) and (0<=col+1<8) and (board[row+1][col+1]!='p')) or ((0<=row+1<8) and (0<=col-1<8) and (board[row+1][col-1]!='p')):
-                        score -=10
+                        score -=15
                     else:
-                        score -=5
+                        score -=10
                 else:
-                    score +=5
+                    score +=10
         #if there is a doubled pawn in col
         for i in range(8):
             if (board[i][col] == 'p') and (i!=row):
                 score+=10
                     
     return score
-
-
 
 
 
@@ -931,10 +1009,22 @@ def computeCenterControl(board):
 
 
 
+def sortMovesBySEE(board, moves):
+    scoredMoves = []
+    for move in moves:
+        fromSquare, toSquare = move
+        if board[algebraicToIndex(toSquare)[0]][algebraicToIndex(toSquare)[1]] != '.':
+            seeScore = SEE(board, fromSquare, toSquare)
+        else:
+            seeScore = 0
+        scoredMoves.append((seeScore, move))
+    scoredMoves.sort(reverse=True)  # 高 SEE 的优先
+    return [m for s, m in scoredMoves]
 
 def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
     color = 'white' if maximizingPlayer else 'black'
     moves = generateAlllegalMoves(board,color)
+    moves = sortMovesBySEE(board,moves)
     if moves == []:
         if isKingChecked(board,color):
             if maximizingPlayer:
@@ -950,13 +1040,16 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
         rootMobility = len(moves) if color =='white' else -len(moves)
         
     if depth == 0:
-        return evaluateBoard(board,piecePositionMap,moves)
+        return quiescence(board,alpha,beta,maximizingPlayer,piecePositionMap)
     if maximizingPlayer:
         maxEval = -float('inf')
         for fromSquare,toSquare in moves:
             doMove(board,fromSquare,toSquare)
             eval = minimax(board,depth-1,alpha,beta,False,piecePositionMap,False)
             undoMove(board)
+            # ⏺️ 日志记录
+            tag = "[ROOT]" if isRoot else "[MAX]"
+            logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
             maxEval = max(eval,maxEval)
             alpha = max(alpha,maxEval)
             if alpha>=beta:
@@ -968,6 +1061,10 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
             
             doMove(board,fromSquare,toSquare)
             eval = minimax(board,depth-1,alpha,beta,True,piecePositionMap,False)
+            logging.debug(f"[MIN] Move {fromSquare}->{toSquare} at depth={depth} got score {eval}")
+            # ⏺️ 日志记录
+            tag = "[ROOT]" if isRoot else "[MIN]"
+            logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
             undoMove(board)
             minEval = min(eval,minEval)
             beta = min(beta,minEval)
@@ -1034,6 +1131,154 @@ def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
 # └── Root: MAX 取 max(5,4,3)=5 → ✅ 最优值 = 5
 # ────────────────────────────────────────────────────
 
+def quiescence(board,alpha,beta,maximizingPlayer,piecePositionMap):
+    currentScore = evaluateBoard(board,piecePositionMap)
+    if maximizingPlayer:
+        if currentScore >=beta:
+            return beta
+        if currentScore >alpha:
+            alpha = currentScore
+    else:
+        if currentScore<=alpha:
+            return alpha
+        if currentScore <beta:
+            beta = currentScore
+    
+    color = 'white' if maximizingPlayer else 'black'
+    
+    captureMoves = generateAllCaptureMoves(board,color)
+    if len(captureMoves) == 0:
+        return currentScore
+
+    if maximizingPlayer:
+        maxEval = -float('inf')
+        for fromSquare,toSquare in captureMoves:
+            doMove(board,fromSquare,toSquare)
+            eval = quiescence(board,alpha,beta,False,piecePositionMap)
+            undoMove(board)
+            maxEval = max(eval,maxEval)
+            alpha = max(eval,alpha)
+            if alpha>=beta:
+                break # Beta cutoff
+        return maxEval
+    else:
+        minEval = float('inf')
+        for fromSquare,toSquare in captureMoves:
+            doMove(board,fromSquare,toSquare)
+            eval = quiescence(board,alpha,beta,True,piecePositionMap)
+            undoMove(board)
+            minEval = min(eval,minEval)
+            beta = min(beta,eval)
+            if beta<=alpha:
+                break # Alpha cutoff
+        return minEval
+
+# def SEE(board, fromSquare, toSquare):
+#     pieceValue = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 100000,
+#                 'p': -100, 'n': -320, 'b': -330, 'r': -500, 'q': -900, 'k': -100000}
+#     fromRow, fromCol = algebraicToIndex(fromSquare)
+#     toRow, toCol = algebraicToIndex(toSquare)
+#     attacker = board[fromRow][fromCol]
+#     victim = board[toRow][toCol]
+#     return pieceValue.get(victim, 0) - pieceValue.get(attacker, 0) >= 0
+    
+
+def SEE(board, fromSquare, toSquare):
+    # Piece values used for exchange evaluation
+    VALUE = {
+        'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000,
+        'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
+    }
+
+    # Temporary board for simulation
+    temp = copy.deepcopy(board)
+
+    fromR, fromC = algebraicToIndex(fromSquare)
+    toR, toC = algebraicToIndex(toSquare)
+
+    attacker = temp[fromR][fromC]
+    defender = temp[toR][toC]
+
+    # Gain list (difference after each exchange)
+    gain = [VALUE.get(defender, 0)]
+
+    # First capture
+    temp[toR][toC] = attacker
+    temp[fromR][fromC] = '.'
+
+    # Whose turn to recapture
+    color = 'black' if attacker.isupper() else 'white'
+
+    # Helper: return list of attack squares on (toR,toC)
+    def all_attackers(board, row, col, color):
+        atks = []
+
+        # Loop over board and find attackers
+        for r in range(8):
+            for c in range(8):
+                piece = board[r][c]
+                if piece == '.': 
+                    continue
+                if color == "white" and not piece.isupper():
+                    continue
+                if color == "black" and not piece.islower():
+                    continue
+
+                # 模拟从该子走到 toSquare 是否合法
+                sq = indexToAlgebraic(r, c)
+                if sq == indexToAlgebraic(row, col):
+                    continue
+
+                moves = []
+                p = piece.lower()
+
+                if p == 'p':
+                    moves = generatePawnMoves(board, sq)
+                elif p == 'n':
+                    moves = generateKnightMoves(board, sq)
+                elif p == 'b':
+                    moves = generateBishopMoves(board, sq)
+                elif p == 'r':
+                    moves = generateRookMoves(board, sq)
+                elif p == 'q':
+                    moves = generateQueenMoves(board, sq)
+                elif p == 'k':
+                    moves = generateKingMoves(board, sq)
+
+                if indexToAlgebraic(row, col) in moves:
+                    atks.append(sq)
+
+        return atks
+
+
+    # Continue simulation
+    while True:
+        # Find all attackers by current color
+        attackers = all_attackers(temp, toR, toC, color)
+        if not attackers:
+            break
+
+        # Pick the lowest-value attacker (LVA)
+        cheapest = min(attackers, key=lambda sq: VALUE[temp[algebraicToIndex(sq)[0]][algebraicToIndex(sq)[1]]])
+        r, c = algebraicToIndex(cheapest)
+        piece = temp[r][c]
+
+        gain.append(VALUE[piece] - gain[-1])  # recapture effect
+
+        # Execute capture
+        temp[r][c] = '.'
+        temp[toR][toC] = piece
+
+        # Switch side
+        color = 'white' if color == 'black' else 'black'
+
+
+    # Backward minimax-like propagation
+    for i in reversed(range(len(gain) - 1)):
+        gain[i] = max(-gain[i + 1], gain[i])
+
+    return gain[0]
+
 
         
 def findBestMove(board,color,depth,piecePositionMap):
@@ -1042,10 +1287,19 @@ def findBestMove(board,color,depth,piecePositionMap):
     bestScore = -float('inf') if maximizingPlayer else float('inf')
     moves = generateAlllegalMoves(board,color)
     
+    logging.debug(f"\n🔍 Searching best move for {color.upper()}, depth={depth}, total legal moves={len(moves)}")
     for fromSquare,toSquare in moves:
         doMove(board,fromSquare,toSquare)
+        movingPiece = board[algebraicToIndex(toSquare)[0]][algebraicToIndex(toSquare)[1]]
+        queenMovePenalty = 0
+        if movingPiece == 'Q' and numOfSteps < 10:
+            queenMovePenalty = -100
+        elif movingPiece == 'q' and numOfSteps < 10:
+            queenMovePenalty = 100
         futureScore = minimax(board,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,True)
+        futureScore += queenMovePenalty
         undoMove(board)
+        logging.debug(f"[ROOT] Move {fromSquare}->{toSquare} scored {futureScore:.2f}")
         if maximizingPlayer:
             if bestScore<futureScore:
                 bestScore = futureScore
@@ -1056,6 +1310,11 @@ def findBestMove(board,color,depth,piecePositionMap):
                 bestMove = (fromSquare,toSquare)
         else:
             pass
+        
+    if bestMove is not None:
+        logging.debug(f"✅ Engine selects move {bestMove} with score {bestScore:.2f}")
+    else:
+        logging.debug("❌ No legal move found (checkmate or stalemate)")
     return bestMove
     
 def isOpponent(piece1,piece2):
@@ -1071,10 +1330,11 @@ def isOpponent(piece1,piece2):
 
 
 def main():
+    global numOfSteps
     board = initializeBoard()
     piecePositionMap = importPositionMap()
     printBoard(board)
-    numOfSteps = 0
+    
     engineSide = None
     print('1: Engine use white')
     print('2: Engine use black')
@@ -1117,12 +1377,10 @@ def main():
         except:
             print("输入格式错误！请用类似 e2 e4 的形式。")
             
+            
 
-main()
-
-
-
-
+if __name__ == "__main__":
+    main()
 
 
 
@@ -1140,6 +1398,166 @@ main()
 
 
 
+
+
+
+
+
+
+# def testBlackShortCastle(board, depth=3):
+#     """
+#     测试黑方在正常可短易位的局面中，
+#     是否只会走 O-O（g8），而不会走像 Kf8, Kd8, Ke7 等诡异步。
+#     """
+#     print("\n=== Test: 黑短易位行为 ===\n")
+
+#     # 人工摆盘而不使用 FEN
+#     # 8  r . . . k . . r
+#     # 7  . . . . . . . .
+#     # 6  . . . . . . . .
+#     # 5  . . . . . . . .
+#     # 4  . . . . . . . .
+#     # 3  . . . . . . . .
+#     # 2  . . . . . . . .
+#     # 1  . . . . K . . .
+#     #    a b c d e f g h
+
+#     board[:] = [
+#         list("r...k..r"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("....K..."),
+#     ]
+
+#     printBoard(board)
+
+#     move = findBestMove(board, "black", depth, importPositionMap())
+#     print("Engine move:", move)
+
+#     # 简单检测
+#     if move is None:
+#         print("❌ Engine gives no move!")
+#         return
+
+#     if move[1] in ("g8", "f8", "h8", "e8", "d8"):
+#         print("✔ Move detected:", move)
+#     else:
+#         print("❌ Suspicious King movement:", move)
+        
+        
+# def testBlackLongCastle(board, depth=3):
+#     print("\n=== Test: 黑长易位行为 ===\n")
+
+#     board[:] = [
+#         list("r...k..r"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("....K..."),
+#     ]
+
+#     # 清掉 h8 rook 以只剩长易位
+#     board[0][7] = '.'
+
+#     printBoard(board)
+
+#     move = findBestMove(board, "black", depth, importPositionMap())
+#     print("Engine move:", move)
+
+#     if move and move[1] not in ("c8", "d8", "e8"):
+#         print("❌ King moved weirdly:", move)
+#     else:
+#         print("✔ Long castle path behavior OK:", move)
+
+# def testBlackRookCaptured(board, depth=3):
+#     print("\n=== Test: 黑 rook 被吃后是否仍能 castle ===\n")
+
+#     board[:] = [
+#         list("r...k..."),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("....K..."),
+#     ]
+
+#     # 模拟 h8 rook 被吃
+#     # 这里不需要真正执行 captures，只需要移除即可
+#     printBoard(board)
+
+#     move = findBestMove(board, "black", depth, importPositionMap())
+#     print("Engine move:", move)
+
+#     if move and move[1] == "g8":
+#         print("❌ ERROR: rook 被吃 Engine 仍试图 castle")
+#     else:
+#         print("✔ rook captured → no castle:", move)
+
+# def testBlackKingChecked(board, depth=3):
+#     print("\n=== Test: 黑王被将军是否还 castle ===\n")
+
+#     board[:] = [
+#         list("r...k..r"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("....Q..."),  # 白皇后将军 e8 王
+#         list("........"),
+#         list("........"),
+#         list("....K..."),
+#     ]
+
+#     printBoard(board)
+
+#     move = findBestMove(board, "black", depth, importPositionMap())
+#     print("Engine move:", move)
+
+#     if move and move[1] == "g8":
+#         print("❌ ERROR: 黑王被将军仍然 castle")
+#     else:
+#         print("✔ King in check → no castle:", move)
+        
+# def testKingMobilityProblem(board, depth=3):
+#     print("\n=== Test: King mobility 是否导致奇怪王步 ===\n")
+
+#     board[:] = [
+#         list("....k..."),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("........"),
+#         list("....PPPP"),
+#         list("....K..."),
+#     ]
+
+#     printBoard(board)
+
+#     move = findBestMove(board, "black", depth, importPositionMap())
+#     print("Engine move:", move)
+
+#     if move[1] in ("d7","e7","f7","f8","d8"):
+#         print("❌ King mobility too high → 王乱跑:", move)
+#     else:
+#         print("✔ mobility OK:", move)
+        
+# def run_castling_tests():
+#     board = [['.'] * 8 for _ in range(8)]
+#     testBlackShortCastle(board)
+#     testBlackLongCastle(board)
+#     testBlackRookCaptured(board)
+#     testBlackKingChecked(board)
+#     testKingMobilityProblem(board)
+            
 
 # def isSquareAttacked(board, row, col, byColor):
 #     directions_bishop = [(-1,-1), (-1,1), (1,-1), (1,1)]
