@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/12/11
+
+Introduce the idea of TT table. By using the function of Zobrist hashing. Updated the SEE function to be more reasonable. Introduce the idea of beam search. Fixed the improper use of deepcopy. The overall efficiency increased by 5.6 times faster.
+
 2025/11/14
 
 Add the function of kingSafety. At the same time, take the consider of king position into two different version. Be more passive in open and middle game, and be more aggressive in endgame
