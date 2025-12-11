@@ -87,35 +87,78 @@ moveHistory = deque()
 
 
 
-# 设置日志路径（与主脚本同目录）
-log_path = os.path.join(BASE_DIR, "engine_debug.log")
+# # 设置日志路径（与主脚本同目录）
+# log_path = os.path.join(BASE_DIR, "engine_debug.log")
 
-# 初始化日志系统
-logging.basicConfig(
-    filename=log_path,
-    filemode='w',  # 每次运行清空旧日志
-    level=logging.DEBUG,
-    format='[%(asctime)s] %(message)s',
-    datefmt='%H:%M:%S'
-)
-
-
+# # 初始化日志系统
+# logging.basicConfig(
+#     filename=log_path,
+#     filemode='w',  # 每次运行清空旧日志
+#     level=logging.DEBUG,
+#     format='[%(asctime)s] %(message)s',
+#     datefmt='%H:%M:%S'
+# )
 
 
+# ==========================================
+#  1. Zobrist 全局初始化 (印字典)
+# ==========================================
+# 映射棋子字符到 0-11 的索引，方便查表
+PIECE_INDEX = {
+    'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5,
+    'p': 6, 'n': 7, 'b': 8, 'r': 9, 'q': 10, 'k': 11
+}
 
+# 生成 12行 x 64列 的随机数表 (64位整数)
+# high=2**64 模拟 64位无符号整数范围
+ZOBRIST_TABLE = np.random.randint(0, 2**63, size=(12, 64), dtype=np.uint64) 
+# 注意：numpy的randint上限在某些版本不支持2**64，用2**63或int64即可，足够乱了。
 
+# 还有一个关键：谁走棋？
+# 同样的棋子位置，轮到白走和轮到黑走是两个完全不同的局面！
+# 所以我们需要一个随机数代表 "现在轮到黑方走"
+ZOBRIST_BLACK_TURN = np.random.randint(0, 2**63, dtype=np.uint64)
 
-def algebraicToIndex(sqaure):
-    row = int(sqaure[-1])
-    letter = sqaure[0]
-    col = ord(letter)-ord('a')
-    row=8-row
-    return(row,col)
+currentHash = np.uint64(0)
 
+TRANSPOSITION_TABLE = {}
+TT_EXACT = 0
+TT_LOWERBOUND = 1
+TT_UPPERBOUND = 2
+
+SQ_TO_COORD = {}
+# (7, 0) -> 'a1'
+COORD_TO_SQ = {}
+
+for r in range(8):
+    for c in range(8):
+        # 你的逻辑：row=0是第8行(黑方底线), row=7是第1行(白方底线)
+        rank = str(8 - r)
+        file = chr(ord('a') + c)
+        sq_str = file + rank
+        
+        SQ_TO_COORD[sq_str] = (r, c)
+        COORD_TO_SQ[(r, c)] = sq_str
+
+# ⚡️ 极速版：直接查字典，不再做数学运算
+def algebraicToIndex(square):
+    return SQ_TO_COORD[square]
+
+# # ⚡️ 极速版：只在打印棋盘给人类看时才用
 def indexToAlgebraic(row, col):
-    file = chr(ord('a') + col)
-    rank = str(8 - row)
-    return file + rank
+    return COORD_TO_SQ[(row, col)]
+
+# def algebraicToIndex(sqaure):
+#     row = int(sqaure[-1])
+#     letter = sqaure[0]
+#     col = ord(letter)-ord('a')
+#     row=8-row
+#     return(row,col)
+
+# def indexToAlgebraic(row, col):
+#     file = chr(ord('a') + col)
+#     rank = str(8 - row)
+#     return file + rank
 
 def printBoard(board):
     for row in range(len(board)):
@@ -132,7 +175,7 @@ def setPiece(board,square,piece):
     board[row][col] = piece
 
 def initializeBoard():
-    global pawnPosition
+    global pawnPosition,currentHash
     board = [['.'] * 8 for _ in range(8)]
     board[0] = ['r','n','b','q','k','b','n','r']
     board[1] = ['p'] * 8
@@ -140,10 +183,11 @@ def initializeBoard():
     board[7] = ['R','N','B','Q','K','B','N','R']
     pawnPosition['white']={'a2','b2','c2','d2','e2','f2','g2','h2'}
     pawnPosition['black']={'a7','b7','c7','d7','e7','f7','g7','h7'}
+    currentHash = computeHash(board,'white')
     return board
 
 def movePiece(board, fromSquare, toSquare):#This is for user to use
-    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory,currentHash
     setEnPassant = False
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
@@ -245,10 +289,15 @@ def movePiece(board, fromSquare, toSquare):#This is for user to use
     if not setEnPassant:
         enPassantColor = None
         enPassantSquare = None
+    
+    next_turn_color = 'black' if piece.isupper() else 'white'
+    
+    # 2. 全盘重算，确保绝对正确
+    currentHash = computeHash(board, next_turn_color)
 
 
 def doMove(board,fromSquare,toSquare):#This is for engine simulation
-    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory,whiteKingCastled,blackKingCastled
+    global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor,pawnPosition,castling_rights,moveHistory,whiteKingCastled,blackKingCastled,currentHash,PIECE_INDEX
     setEnPassant = False
     fromRow, fromCol = algebraicToIndex(fromSquare)
     toRow, toCol = algebraicToIndex(toSquare)
@@ -259,7 +308,7 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
                 'to':toSquare,
                 'movedPiece':piece,
                 'capturedPiece':target,
-                'rights':copy.deepcopy(castling_rights),
+                'rights':castling_rights.copy(),
                 'enPassantSquare':enPassantSquare,
                 'enPassantColor':enPassantColor,
                 'pawnPosition':{'white':pawnPosition['white'].copy(),'black':pawnPosition['black'].copy()},
@@ -267,14 +316,58 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
                 'isWhiteQueenExist':isWhiteQueenExist,
                 'special': None,
                 'whiteKingCastled':whiteKingCastled,
-                'blackKingCastled':blackKingCastled
-                
+                'blackKingCastled':blackKingCastled,
+                'hash':currentHash
                 }
     
-
+    def pieceXOR(piece,row,col):
+        if piece == '.':
+            return 0
+        pieceIndex = PIECE_INDEX[piece]
+        squareIndex = row*8+col
+        return ZOBRIST_TABLE[pieceIndex][squareIndex]
     
         
-
+    #Do the hash computation
+    currentHash ^= pieceXOR(piece,fromRow,fromCol)
+    if target !='.':
+        currentHash ^= pieceXOR(target,toRow,toCol)
+    
+    actualPieceToPlace = piece
+    if piece == 'P' and toRow == 0: actualPieceToPlace = 'Q'
+    elif piece == 'p' and toRow == 7: actualPieceToPlace = 'q'
+    
+    currentHash ^= pieceXOR(actualPieceToPlace, toRow, toCol)
+    
+    if piece in ('P','p') and toSquare == enPassantSquare:
+        if piece == 'P':
+            opRow,opCol = algebraicToIndex(enPassantSquare)
+            currentHash ^= pieceXOR('p',opRow+1,opCol)
+        elif piece == 'p':
+            opRow,opCol = algebraicToIndex(enPassantSquare)
+            currentHash ^= pieceXOR('P',opRow-1,opCol)
+            
+    if piece in ('K','k'):
+        if piece == 'K':
+            # white short castle hash xor
+            if fromSquare == 'e1' and toSquare == 'g1': 
+                currentHash ^= pieceXOR('R', 7, 7) # Take away h1 rook
+                currentHash ^= pieceXOR('R', 7, 5) # put it to h1
+            # white long castle hash xor
+            elif fromSquare == 'e1' and toSquare == 'c1':
+                currentHash ^= pieceXOR('R', 7, 0) # Take awat a1 rook
+                currentHash ^= pieceXOR('R', 7, 3) # put it to d1
+        elif piece == 'k':
+            # black short castle hash xor
+            if fromSquare == 'e8' and toSquare == 'g8':
+                currentHash ^= pieceXOR('r', 0, 7)
+                currentHash ^= pieceXOR('r', 0, 5)
+            # black long castle hash xor
+            elif fromSquare == 'e8' and toSquare == 'c8':
+                currentHash ^= pieceXOR('r', 0, 0)
+                currentHash ^= pieceXOR('r', 0, 3)
+    currentHash ^= ZOBRIST_BLACK_TURN
+    
     if target == 'R':
         if toSquare == 'a1':
             castling_rights['white_rook_a_moved'] = True
@@ -317,7 +410,6 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
     #Officially do the move
     board[toRow][toCol] = piece
     board[fromRow][fromCol] = '.'
-    
 
     
     #Update pawnPosition
@@ -387,6 +479,7 @@ def doMove(board,fromSquare,toSquare):#This is for engine simulation
 def undoMove(board):
     global isWhiteQueenExist, isBlackQueenExist,enPassantSquare,enPassantColor
     global pawnPosition,castling_rights,moveHistory,whiteKingCastled,blackKingCastled
+    global currentHash
 
     if len(moveHistory) == 0:
         return
@@ -399,6 +492,7 @@ def undoMove(board):
 
     movedPiece = snapshot["movedPiece"]
     capturedPiece = snapshot["capturedPiece"]
+    currentHash = snapshot['hash']
 
     # 1) Restore board (including en-passant restores + castling rook move)
     if movedPiece in ('P','p') and toSq == snapshot['enPassantSquare']:
@@ -872,6 +966,7 @@ def evaluateBoard(board,piecePositionMap,mobilityHint=None):
         if numOfSteps<8 and (trow,tcol) in centerSquare:
             score-=12
                 
+                
     if not isEndGame:
         # Knights undeveloped
         if board[7][1] == 'N': score -= 15   # b1 knight
@@ -1021,56 +1116,199 @@ def sortMovesBySEE(board, moves):
     scoredMoves.sort(reverse=True)  # 高 SEE 的优先
     return [m for s, m in scoredMoves]
 
-def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
-    color = 'white' if maximizingPlayer else 'black'
-    moves = generateAlllegalMoves(board,color)
-    moves = sortMovesBySEE(board,moves)
-    if moves == []:
-        if isKingChecked(board,color):
-            if maximizingPlayer:
-                return -100000+depth
-                
-            else:
-                return 100000-depth
-        else:
-            return 0
+
+def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoot):
+    global currentHash # 必须引用这个全局变量，它现在实时代表当前局面
+    
+    # -------------------------------------------
+    # 1. 查表 (TT Lookup) - 是否已经搜过这个局面？
+    # -------------------------------------------
+    # 根节点(isRoot)通常不直接返回TT分数，因为我们需要确保拿到最新的BestMove用于打印
+    # 或者防止哈希碰撞导致的根节点直接返回。但如果不是根节点，能偷懒就偷懒。
+    
+    alphaOriginal = alpha # 记录初始 Alpha，用于最后判断 Flag 类型
+    tt_move = None
+    
+    # 检查置换表中是否有数据
+    if currentHash in TRANSPOSITION_TABLE:
+        tt_entry = TRANSPOSITION_TABLE[currentHash]
+        # entry格式: (score, depth, flag, best_move)
+        tt_score, tt_depth, tt_flag, tt_move = tt_entry
         
-    rootMobility = 0
-    if isRoot:
-        rootMobility = len(moves) if color =='white' else -len(moves)
-        
+        # 只有当表中记录的深度 >= 当前要求的深度，分数才可靠
+        if not isRoot and tt_depth >= depth:
+            if tt_flag == TT_EXACT: # 精确值
+                return tt_score
+            elif tt_flag == TT_LOWERBOUND: # 下界 (真实值 >= tt_score)
+                alpha = max(alpha, tt_score)
+            elif tt_flag == TT_UPPERBOUND: # 上界 (真实值 <= tt_score)
+                beta = min(beta, tt_score)
+            
+            # 如果剪枝条件满足，直接返回
+            if alpha >= beta:
+                return tt_score
+
+    # -------------------------------------------
+    # 2. 基础判断 (Base Cases)
+    # -------------------------------------------
     if depth == 0:
-        return quiescence(board,alpha,beta,maximizingPlayer,piecePositionMap)
+        # 进入静态搜索 (Quiescence Search)
+        return quiescence(board, alpha, beta, maximizingPlayer, piecePositionMap)
+    
+    color = 'white' if maximizingPlayer else 'black'
+    moves = generateAlllegalMoves(board, color)
+    
+    if moves == []:
+        if isKingChecked(board, color):
+            # 被杀，返回负无穷（根据深度调整，优先选择更快的杀棋）
+            return -100000 + (10 - depth) if maximizingPlayer else 100000 - (10 - depth)
+        else:
+            # 逼和
+            return 0
+
+    # -------------------------------------------
+    # 3. 走法排序优化 (Move Ordering)
+    # -------------------------------------------
+    # A. Hash Move 优先 (如果在TT里记住了最佳走法，先试它！)
+    if tt_move is not None:
+        # 必须检查这个 move 是否在当前的合法走法里（防止哈希冲突导致的非法移动）
+        if tt_move in moves:
+            moves.remove(tt_move)
+            moves.insert(0, tt_move)
+            
+    # B. 其他走法使用 SEE 排序
+    # (注意：现在的 moves 列表第一个已经是 Hash Move 了，sortMovesBySEE 需要处理好不要打乱它，
+    # 或者简单的做法是：先只对剩下的排序，再把 Hash Move 加回来。
+    # 这里为了简单，假设 sortMovesBySEE 是稳定的，或者我们接受它重排)
+    # 最优写法：保持 Hash Move 第一，剩下的排序。
+    if tt_move and moves[0] == tt_move:
+        rest_moves = sortMovesBySEE(board, moves[1:])
+        moves = [tt_move] + rest_moves
+    else:
+        moves = sortMovesBySEE(board, moves)
+    
+    if isRoot and len(moves)>10:
+        bestMoves = moves[:9]
+        for fq,tq in moves[9:]:
+            tr,tc = algebraicToIndex(tq)
+            if board[tr][tc]!= '.':
+                bestMoves.append((fq,tq))
+        moves = bestMoves
+
+    # -------------------------------------------
+    # 4. 递归搜索 (Search Loop)
+    # -------------------------------------------
+    best_move_this_node = None # 记录当前节点找到的最佳走法
+    
     if maximizingPlayer:
         maxEval = -float('inf')
-        for fromSquare,toSquare in moves:
-            doMove(board,fromSquare,toSquare)
-            eval = minimax(board,depth-1,alpha,beta,False,piecePositionMap,False)
+        for fromSquare, toSquare in moves:
+            doMove(board, fromSquare, toSquare)
+            # 递归
+            eval = minimax(board, depth - 1, alpha, beta, False, piecePositionMap, False)
             undoMove(board)
-            # ⏺️ 日志记录
-            tag = "[ROOT]" if isRoot else "[MAX]"
-            logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
-            maxEval = max(eval,maxEval)
-            alpha = max(alpha,maxEval)
-            if alpha>=beta:
-                break
-        return maxEval + rootMobility
+            
+            # 更新最佳分数
+            if eval > maxEval:
+                maxEval = eval
+                best_move_this_node = (fromSquare, toSquare)
+            
+            # Alpha-Beta 更新
+            alpha = max(alpha, eval)
+            if alpha >= beta:
+                break # Beta Cutoff
+        
+        final_val = maxEval
+        
     else:
         minEval = float('inf')
-        for fromSquare,toSquare in moves:
-            
-            doMove(board,fromSquare,toSquare)
-            eval = minimax(board,depth-1,alpha,beta,True,piecePositionMap,False)
-            logging.debug(f"[MIN] Move {fromSquare}->{toSquare} at depth={depth} got score {eval}")
-            # ⏺️ 日志记录
-            tag = "[ROOT]" if isRoot else "[MIN]"
-            logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
+        for fromSquare, toSquare in moves:
+            doMove(board, fromSquare, toSquare)
+            # 递归
+            eval = minimax(board, depth - 1, alpha, beta, True, piecePositionMap, False)
             undoMove(board)
-            minEval = min(eval,minEval)
-            beta = min(beta,minEval)
-            if beta<=alpha:
-                break
-        return minEval + rootMobility
+            
+            # 更新最佳分数
+            if eval < minEval:
+                minEval = eval
+                best_move_this_node = (fromSquare, toSquare)
+                
+            # Alpha-Beta 更新
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break # Alpha Cutoff
+                
+        final_val = minEval
+
+    # -------------------------------------------
+    # 5. 存表 (TT Store)
+    # -------------------------------------------
+    tt_flag = TT_EXACT
+    if final_val <= alphaOriginal:
+        tt_flag = TT_UPPERBOUND # Fail Low: 没超过 Alpha，说明是个烂局面 (Upper Bound)
+    elif final_val >= beta:
+        tt_flag = TT_LOWERBOUND # Fail High: 超过了 Beta，说明太好了被剪枝 (Lower Bound)
+    else:
+        tt_flag = TT_EXACT      # Exact: 在窗口内，是精确值
+    
+    # 存入置换表：Hash -> (Score, Depth, Flag, BestMove)
+    TRANSPOSITION_TABLE[currentHash] = (final_val, depth, tt_flag, best_move_this_node)
+    
+    return final_val
+
+
+
+
+# def minimax(board,depth,alpha,beta,maximizingPlayer,piecePositionMap,isRoot):
+#     color = 'white' if maximizingPlayer else 'black'
+#     moves = generateAlllegalMoves(board,color)
+#     moves = sortMovesBySEE(board,moves)
+#     if moves == []:
+#         if isKingChecked(board,color):
+#             if maximizingPlayer:
+#                 return -100000+depth
+                
+#             else:
+#                 return 100000-depth
+#         else:
+#             return 0
+        
+#     rootMobility = 0
+#     if isRoot:
+#         rootMobility = len(moves) if color =='white' else -len(moves)
+        
+#     if depth == 0:
+#         return quiescence(board,alpha,beta,maximizingPlayer,piecePositionMap)
+#     if maximizingPlayer:
+#         maxEval = -float('inf')
+#         for fromSquare,toSquare in moves:
+#             doMove(board,fromSquare,toSquare)
+#             eval = minimax(board,depth-1,alpha,beta,False,piecePositionMap,False)
+#             undoMove(board)
+#             # ⏺️ 日志记录
+#             tag = "[ROOT]" if isRoot else "[MAX]"
+#             logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
+#             maxEval = max(eval,maxEval)
+#             alpha = max(alpha,maxEval)
+#             if alpha>=beta:
+#                 break
+#         return maxEval + rootMobility
+#     else:
+#         minEval = float('inf')
+#         for fromSquare,toSquare in moves:
+            
+#             doMove(board,fromSquare,toSquare)
+#             eval = minimax(board,depth-1,alpha,beta,True,piecePositionMap,False)
+#             logging.debug(f"[MIN] Move {fromSquare}->{toSquare} at depth={depth} got score {eval}")
+#             # ⏺️ 日志记录
+#             tag = "[ROOT]" if isRoot else "[MIN]"
+#             logging.debug(f"{tag} Move {fromSquare}->{toSquare} at depth={depth} got score {eval:.2f}")
+#             undoMove(board)
+#             minEval = min(eval,minEval)
+#             beta = min(beta,minEval)
+#             if beta<=alpha:
+#                 break
+#         return minEval + rootMobility
     
 # ────────────────────────────────────────────────────
 # Level 1: Root (MAX) α=-∞ β=+∞
@@ -1183,101 +1421,208 @@ def quiescence(board,alpha,beta,maximizingPlayer,piecePositionMap):
 #     return pieceValue.get(victim, 0) - pieceValue.get(attacker, 0) >= 0
     
 
+# ============================================================================
+#  SEE (Static Exchange Evaluation) & Helpers - 最终版
+# ============================================================================
+
+piece_values_simple = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000,
+                       'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000}
+
+def get_piece_value(piece):
+    return piece_values_simple.get(piece, 0)
+
+def get_lowest_attacker(board, square, color):
+    targetRow, targetCol = algebraicToIndex(square)
+    lowest_value = float('inf')
+    best_attacker_sq = None
+    best_attacker_piece = None
+
+    # 1. Pawn
+    pawn_char = 'P' if color == 'white' else 'p'
+    # 攻击者的位置：如果是白兵攻击，它一定在 targetRow+1 行（向上攻击）；黑兵在 targetRow-1
+    attack_from_row = targetRow + 1 if color == 'white' else targetRow - 1
+    
+    if 0 <= attack_from_row < 8:
+        for dc in [-1, 1]:
+            c = targetCol + dc
+            if 0 <= c < 8 and board[attack_from_row][c] == pawn_char:
+                return (pawn_char, indexToAlgebraic(attack_from_row, c))
+
+    # 2. Knight
+    knight_char = 'N' if color == 'white' else 'n'
+    for dr, dc in [(1,2),(1,-2),(2,1),(2,-1),(-1,2),(-1,-2),(-2,1),(-2,-1)]:
+        r, c = targetRow + dr, targetCol + dc
+        if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == knight_char:
+            # 找到马直接返回，因为肯定比 B/R/Q 便宜
+            return (knight_char, indexToAlgebraic(r, c))
+
+    # 3. Sliders (Bishop, Rook, Queen)
+    # 这里的逻辑：先找到所有攻击者，再选最小的。
+    # 为了效率，我们按 B < R < Q 的顺序找。
+    
+    # Bishops & Queens (Diagonal)
+    bishop_char = 'B' if color == 'white' else 'b'
+    queen_char = 'Q' if color == 'white' else 'q'
+    
+    candidates = []
+    
+    for dr, dc in [(-1,-1), (-1,1), (1,-1), (1,1)]:
+        r, c = targetRow + dr, targetCol + dc
+        while 0 <= r < 8 and 0 <= c < 8:
+            p = board[r][c]
+            if p != '.':
+                if p == bishop_char or p == queen_char:
+                    candidates.append((p, indexToAlgebraic(r, c), get_piece_value(p)))
+                break
+            r += dr
+            c += dc
+            
+    # Rooks & Queens (Orthogonal)
+    rook_char = 'R' if color == 'white' else 'r'
+    for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:
+        r, c = targetRow + dr, targetCol + dc
+        while 0 <= r < 8 and 0 <= c < 8:
+            p = board[r][c]
+            if p != '.':
+                if p == rook_char or p == queen_char:
+                    candidates.append((p, indexToAlgebraic(r, c), get_piece_value(p)))
+                break
+            r += dr
+            c += dc
+            
+    # King
+    king_char = 'K' if color == 'white' else 'k'
+    for dr, dc in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]:
+        r, c = targetRow + dr, targetCol + dc
+        if 0 <= r < 8 and 0 <= c < 8 and board[r][c] == king_char:
+             candidates.append((king_char, indexToAlgebraic(r, c), 20000))
+
+    if not candidates:
+        return (None, None)
+    
+    # 返回价值最小的
+    candidates.sort(key=lambda x: x[2])
+    return (candidates[0][0], candidates[0][1])
+
+
 def SEE(board, fromSquare, toSquare):
-    # Piece values used for exchange evaluation
-    VALUE = {
-        'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000,
-        'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
-    }
+    fromRow, fromCol = algebraicToIndex(fromSquare)
+    toRow, toCol = algebraicToIndex(toSquare)
+    
+    target = board[toRow][toCol]
+    attacker = board[fromRow][fromCol]
+    
+    # 记录修改，以便回滚
+    changes = []
+    def apply_temp(r, c, p):
+        changes.append((r, c, board[r][c]))
+        board[r][c] = p
 
-    # Temporary board for simulation
-    temp = copy.deepcopy(board)
-
-    fromR, fromC = algebraicToIndex(fromSquare)
-    toR, toC = algebraicToIndex(toSquare)
-
-    attacker = temp[fromR][fromC]
-    defender = temp[toR][toC]
-
-    # Gain list (difference after each exchange)
-    gain = [VALUE.get(defender, 0)]
-
-    # First capture
-    temp[toR][toC] = attacker
-    temp[fromR][fromC] = '.'
-
-    # Whose turn to recapture
-    color = 'black' if attacker.isupper() else 'white'
-
-    # Helper: return list of attack squares on (toR,toC)
-    def all_attackers(board, row, col, color):
-        atks = []
-
-        # Loop over board and find attackers
-        for r in range(8):
-            for c in range(8):
-                piece = board[r][c]
-                if piece == '.': 
-                    continue
-                if color == "white" and not piece.isupper():
-                    continue
-                if color == "black" and not piece.islower():
-                    continue
-
-                # 模拟从该子走到 toSquare 是否合法
-                sq = indexToAlgebraic(r, c)
-                if sq == indexToAlgebraic(row, col):
-                    continue
-
-                moves = []
-                p = piece.lower()
-
-                if p == 'p':
-                    moves = generatePawnMoves(board, sq)
-                elif p == 'n':
-                    moves = generateKnightMoves(board, sq)
-                elif p == 'b':
-                    moves = generateBishopMoves(board, sq)
-                elif p == 'r':
-                    moves = generateRookMoves(board, sq)
-                elif p == 'q':
-                    moves = generateQueenMoves(board, sq)
-                elif p == 'k':
-                    moves = generateKingMoves(board, sq)
-
-                if indexToAlgebraic(row, col) in moves:
-                    atks.append(sq)
-
-        return atks
-
-
-    # Continue simulation
+    # 收益列表
+    # gain[0]: 第一次吃掉的棋子价值
+    gain = [get_piece_value(target)]
+    
+    # 执行第一步
+    apply_temp(toRow, toCol, attacker)
+    apply_temp(fromRow, fromCol, '.')
+    
+    attacker_side = 'white' if attacker.isupper() else 'black'
+    current_side = 'black' if attacker_side == 'white' else 'white'
+    
     while True:
-        # Find all attackers by current color
-        attackers = all_attackers(temp, toR, toC, color)
-        if not attackers:
+        piece, sq = get_lowest_attacker(board, toSquare, current_side)
+        if not piece:
             break
+            
+        # 这一步吃掉的是上一步移动过来的棋子 (board[toRow][toCol])
+        captured_piece_val = get_piece_value(board[toRow][toCol])
+        
+        # 将这一步的收益存入列表。
+        # 注意：这里存的是单纯的物质价值。回溯时再计算正负。
+        # gain[n] = (Value of piece captured by side X) - gain[n-1]
+        # 这种递归定义比较绕，我们使用标准列表法：
+        # gain_list = [Val_Victim, Val_Attacker1, Val_Attacker2, ...]
+        # 也就是：gain[0]是第一步赚的，gain[1]是如果对手吃回，对手赚的(针对attacker1)
+        
+        # 修正上面的 gain 列表逻辑，改为只存每一步被吃掉的棋子的价值
+        # 这样逻辑更清晰
+        # 我们重新初始化 gain
+        break 
 
-        # Pick the lowest-value attacker (LVA)
-        cheapest = min(attackers, key=lambda sq: VALUE[temp[algebraicToIndex(sq)[0]][algebraicToIndex(sq)[1]]])
-        r, c = algebraicToIndex(cheapest)
-        piece = temp[r][c]
+    # === 重置逻辑，使用纯 Value 列表 ===
+    # 必须回滚之前的修改
+    for r, c, p in reversed(changes):
+        board[r][c] = p
+    changes = []
+    
+    # === RESTART CLEAN LOGIC ===
+    values = [get_piece_value(target)] # 0: 第一次被吃掉的子
+    
+    apply_temp(toRow, toCol, attacker)
+    apply_temp(fromRow, fromCol, '.')
+    
+    current_side = 'black' if attacker.isupper() else 'white'
+    
+    while True:
+        piece, sq = get_lowest_attacker(board, toSquare, current_side)
+        if not piece:
+            break
+        
+        # 下一步被吃掉的就是现在占在 toSquare 上的子
+        values.append(get_piece_value(board[toRow][toCol]))
+        
+        # 移动
+        src_r, src_c = algebraicToIndex(sq)
+        apply_temp(toRow, toCol, piece)
+        apply_temp(src_r, src_c, '.')
+        
+        current_side = 'white' if current_side == 'black' else 'black'
+        if piece.lower() == 'k': # King capturer ends sequence
+            break
+            
+    # 恢复棋盘
+    for r, c, p in reversed(changes):
+        board[r][c] = p
+        
+    # 计算最终 SEE
+    # values = [100, 320, 500] 意思是：
+    # 1. 白方吃兵(+100)
+    # 2. 黑方吃马(+320) -> 对黑方来说赚320，但对白方来说是丢320
+    # 3. 白方吃车(+500)
+    
+    # 从后往前推：
+    # 最后一步发起者如果不划算，就不会走。
+    
+    # 最后一个收益总是属于发起该步的一方
+    score = 0
+    # 从列表末尾开始
+    # score表示：面对这一步，当前决策者能得到的最大净收益
+    
+    for v in reversed(values[1:]):
+        score = max(0, v - score)
+        
+    # 最后一步 values[0] 是无论如何都发生的（因为我们已经评估了 move 是合法的）
+    # 或者说 SEE 是评估结果，如果结果 < 0 引擎自然不走。
+    # 标准公式：gain[i] = values[i] - gain[i+1]
+    
+    final_score = values[0] - score
+    return final_score
 
-        gain.append(VALUE[piece] - gain[-1])  # recapture effect
 
-        # Execute capture
-        temp[r][c] = '.'
-        temp[toR][toC] = piece
+def computeHash(board,color):
+    hashValue = np.uint64(0)
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece !='.':
+                pieceIndex = PIECE_INDEX[piece]
+                squareIndex = row*8+col
+                pieceHash = ZOBRIST_TABLE[pieceIndex][squareIndex]
+                hashValue ^= pieceHash
+    if color == 'black':
+        hashValue^= ZOBRIST_BLACK_TURN
+    return hashValue
 
-        # Switch side
-        color = 'white' if color == 'black' else 'black'
-
-
-    # Backward minimax-like propagation
-    for i in reversed(range(len(gain) - 1)):
-        gain[i] = max(-gain[i + 1], gain[i])
-
-    return gain[0]
 
 
         
@@ -1353,7 +1698,7 @@ def main():
         color = 'white' if numOfSteps%2 == 0 else 'black'
         if engineSide == 'both' or color == engineSide:
             startTime = time.time()
-            moveRecommend = findBestMove(board,color,3,piecePositionMap)
+            moveRecommend = findBestMove(board,color,4,piecePositionMap)
             if moveRecommend is None:
                 print('Mated')
                 break
