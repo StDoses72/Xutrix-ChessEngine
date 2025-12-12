@@ -1,9 +1,6 @@
-# Place your creative task here!
-
-# Be clever, be creative, have fun
-
 from cmu_graphics import *
-import math
+
+
 
 class Board:
     def __init__(self):
@@ -12,10 +9,17 @@ class Board:
         self.blackKingMoved = False
         self.whiteARookMoved = False
         self.whiteHRookMoved = False
-        self.blackKingMoved = False
+        self.blackARookMoved = False
+        self.blackHRookMoved = False
         self.materialDiff = 0
         self.enPassant = None
         self.enPassantCapturer = None
+        self.whiteLongCastle = False
+        self.whiteShortCastle = False
+        self.blackLongCastle = False
+        self.blackShortCastle = False
+        self.isWhiteLose = False
+        self.isBlackLose = False
         
     
     def __repr__(self):
@@ -36,14 +40,6 @@ class Board:
         elif isinstance(piece,Queen):
             return slidingPieceMoves('Q',self,fromRow,fromCol)
             
-        
-        
-        
-        
-        
-        
-        
-        
     def doMove(self,fromRow,fromCol,toRow,toCol):
         isEnpassant = False
         piece = self.board[fromRow][fromCol]
@@ -76,6 +72,60 @@ class Board:
                 if target!=None:
                     target.row = None
                     target.col = None
+                    
+                if isinstance(target,King) and target.color =='white':
+                    self.isWhiteLose = True
+                elif isinstance(target,King) and target.color =='black':
+                    self.isBlackLose = True
+            if isinstance(piece,King):
+                if piece.color =='white':
+                    if fromRow == 7 and fromCol == 4 and toCol ==  6 and toRow == 7:#short castle
+                        temp = self.board[7][7]
+                        self.board[7][7]=None
+                        temp.row = 7
+                        temp.col = 5
+                        self.board[7][5] = temp
+                        self.whiteHRookMoved =True
+                    elif fromRow == 7 and fromCol == 4 and toRow == 7 and toCol == 2:#long castle
+                        temp = self.board[7][0]
+                        self.board[7][0]=None
+                        temp.row = 7
+                        temp.col = 3
+                        self.board[7][3] = temp
+                        self.whiteARookMoved =True
+                    self.whiteKingMoved = True
+                elif piece.color =='black':
+                    if fromRow == 0 and fromCol == 4 and toCol ==  6 and toRow == 0:#short castle
+                        temp = self.board[0][7]
+                        self.board[0][7]=None
+                        temp.row = 0
+                        temp.col = 5
+                        self.board[0][5] = temp
+                        self.blackHRookMoved =True
+                    elif fromRow == 0 and fromCol == 4 and toRow == 0 and toCol == 2:#long castle
+                        temp = self.board[0][0]
+                        self.board[0][0]=None
+                        temp.row = 0
+                        temp.col = 3
+                        self.board[0][3] = temp
+                        self.blackARookMoved =True
+                    self.blackKingMoved = True
+            elif isinstance(piece,Rook):
+                if piece.color == 'white':
+                    if fromRow == 7 and fromCol ==7 and self.whiteHRookMoved == False:
+                        self.whiteHRookMoved =True
+                    if fromRow == 7 and fromCol ==0 and self.whiteARookMoved == False:
+                        self.whiteARookMoved =True
+                if piece.color == 'black':
+                    if fromRow == 0 and fromCol ==7 and self.whiteHRookMoved == False:
+                        self.blackHRookMoved =True
+                    if fromRow == 0 and fromCol ==0 and self.whiteARookMoved == False:
+                        self.blackARookMoved =True
+
+                    
+                elif piece.color == 'black':
+                    self.blackKingMoved == True
+                    
         if (fromRow == 7 and fromCol == 0 and isinstance(piece,Rook) and piece.color == 'white') or (toRow == 7 and toCol == 0 and isinstance(target,Rook) and target.color== 'white'):
             self.whiteARookMoved = True
         elif (fromRow == 7 and fromCol == 7 and isinstance(piece,Rook) and piece.color == 'white') or (toRow == 7 and toCol == 7 and isinstance(target,Rook) and target.color == 'white'):
@@ -99,10 +149,70 @@ class Board:
         if not isEnpassant:
             self.enPassant = None
             self.enPassantColor = None
-
-
+    
+    def isSquareAttacked(self,row,col,byColor):
+        piece = self.board[row][col]
+        #Pawn attack:
+        if byColor == 'black':
+            for dcol in [-1,1]:
+                if 0<=row+1<8 and 0<=col+dcol<8:
+                    if isinstance(self.board[row+1][col+dcol],Pawn) and self.board[row+1][col+dcol].color == byColor:
+                        return True
+        else:
+            for dcol in [-1,1]:
+                if 0<=row+1<8 and 0<=col+dcol<8:
+                    if isinstance(self.board[row-1][col+dcol],Pawn) and self.board[row-1][col+dcol].color == byColor:
+                        return True
+        #Knight attack
+        cdir = [(2,1),(2,-1),(1,2),(1,-2),(-1,2),(-1,-2),(-2,1),(-2,-1)]
+        for drow,dcol in cdir:
+            if 0<=row+drow<=7 and 0<=col+dcol<=7:
+                if isinstance(self.board[row+drow][col+dcol],Knight) and self.board[row+drow][col+dcol].color == byColor:
+                    return True
+        #King attack
+        cdir = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+        for drow,dcol in cdir:
+            if 0<=row+drow<=7 and 0<=col+dcol<=7:
+                if isinstance(self.board[row+drow][col+dcol],King) and self.board[row+drow][col+dcol].color == byColor:
+                    return True
+        #Bishop & Queen attack
+        cdir = [(1,1),(-1,1),(-1,-1),(1,-1)]
+        for drow,dcol in cdir:
+            r = row+drow
+            c = col+dcol
+            while 0<=r<8 and 0<=c<8:
+                t = self.board[r][c]
+                if t != None:
+                    if (isinstance(t,Bishop) or isinstance(t,Queen)) and t.color == byColor:
+                        return True
+                    break
+                r+= drow
+                c+= dcol
+        #Rook & Queen attack
+        cdir = [(1,0),(0,1),(-1,0),(0,-1)]
+        for drow,dcol in cdir:
+            r = row+drow
+            c = col+dcol
+            while 0<=r<8 and 0<=c<8:
+                t = self.board[r][c]
+                if t != None:
+                    if (isinstance(t,Rook) or isinstance(t,Queen)) and t.color == byColor:
+                        return True
+                    break
+                r+= drow
+                c+= dcol
+        return False
+    def isChecked(self,color):
+        for row in range(8):
+            for col in range(8):
+                if isinstance(self.board[row][col],King) and self.board[row][col].color == color:
+                    byColor = 'black' if color =='white' else 'white'
+                    if self.isSquareAttacked(row,col,byColor):
+                        return True
+        return False
 #Moves generators
 def kingMoves(board,row,col):
+    color = board.board[row][col].color
     moves = []
     cdir = [(-1,-1),(-1,0),(-1,1),
             (0,-1),(0,1),
@@ -112,7 +222,27 @@ def kingMoves(board,row,col):
         c = col+dcol
         if 0<=r<=7 and 0<=c<=7:
             if board.board[row][col].isOpponent(board.board[r][c]):
-                moves.append((r,c))
+                if color =='white':
+                    if not board.isSquareAttacked(r,c,'black'):
+                        moves.append((r,c))
+                else:
+                    if not board.isSquareAttacked(r,c,'white'):
+                        moves.append((r,c))
+    if board.board[row][col].color == 'white':
+        if board.whiteKingMoved == False and board.whiteHRookMoved == False:#shortCastle
+            if board.board[7][5] == None and board.board[7][6] == None and not board.isSquareAttacked(7,5,'black') and not board.isSquareAttacked(7,6,'black'):
+                moves.append((7,6))
+        if board.whiteKingMoved == False and board.whiteARookMoved == False:#longCastle
+            if board.board[7][1] == None and board.board[7][2] == None and board.board[7][3]==None and not board.isSquareAttacked(7,1,'black') and not board.isSquareAttacked(7,2,'black') and not board.isSquareAttacked(7,3,'black'):
+                moves.append((7,2))
+    elif board.board[row][col].color == 'black':#short castle
+        if board.blackKingMoved == False and board.blackHRookMoved == False:
+            if board.board[0][5] == None and board.board[0][6] == None and not board.isSquareAttacked(0,5,'white') and not board.isSquareAttacked(0,6,'white'):
+                moves.append((0,6))
+
+        if board.blackKingMoved == False and board.blackARookMoved == False:
+            if board.board[0][1] == None and board.board[0][2] == None and board.board[0][3]==None and not board.isSquareAttacked(0,1,'white') and not board.isSquareAttacked(0,2,'white') and not board.isSquareAttacked(0,3,'white'):
+                moves.append((0,2))
     return moves
             
 def pawnMoves(board,row,col):
@@ -124,9 +254,11 @@ def pawnMoves(board,row,col):
             if drow ==2:
                 if row ==6:
                     r = row-drow
-                    moves.append((r,col))
+                    if 0<=row-2<8 and board.board[row-1][col]==None and board.board[row-2][col]==None:
+                        moves.append((r,col))
             else:
-                moves.append((row-drow,col))
+                if 0<=row-1<8 and board.board[row-1][col]==None:
+                    moves.append((row-drow,col))
         for dcol in range(-1,2):#generating capture moves
             if dcol!=0 and 0<=row+1<=7 and 0<=col+dcol<=7:
                 target = board.board[row-1][col+dcol]
@@ -140,14 +272,16 @@ def pawnMoves(board,row,col):
             if drow ==2:
                 if row ==1:
                     r = row+drow
-                    moves.append((r,col))
+                    if 0<=row+2<8 and board.board[row+1][col]==None and board.board[row+2][col]==None:
+                        moves.append((r,col))
             else:
-                moves.append((row+drow,col))
+                if 0<=row+1<8 and board.board[row+1][col]==None:
+                    moves.append((row+drow,col))
         for dcol in range(-1,2):
             if dcol!=0 and 0<=row+1<=7 and 0<=col+dcol<=7:
                 target = board.board[row+1][col+dcol]
                 if piece.isOpponent(target) and target!=None:
-                    moves.append((row-1,col+dcol))
+                    moves.append((row+1,col+dcol))
         if ((piece.row+1,piece.col-1)==board.enPassant and board.enPassantCapturer =='black') or ((piece.row+1,piece.col+1)==board.enPassant and board.enPassantCapturer =='black'):
             moves.append(board.enPassant)
     return moves
@@ -187,22 +321,6 @@ def slidingPieceMoves(ptype,board,row,col):
                     break
     return moves
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          
 
 class Piece:
     def __init__(self,row,col,color):
@@ -287,59 +405,76 @@ def drawBoard(app,board):
     for row in range(8):
         for col in range(8):
             color = 'white' if col%2 == row%2 else 'darkgray'
-            drawRect(col*cellSize,row*cellSize,cellSize,cellSize,fill = color,border = 'black')
+            if board.isChecked('white') and isinstance(board.board[row][col],King) and board.board[row][col].color == 'white':
+                drawRect(col*cellSize,row*cellSize,cellSize,cellSize,fill = 'red',border = 'black')
+            elif board.isChecked('black') and isinstance(board.board[row][col],King) and board.board[row][col].color == 'black':
+                drawRect(col*cellSize,row*cellSize,cellSize,cellSize,fill = 'red',border = 'black')
+            else:
+                drawRect(col*cellSize,row*cellSize,cellSize,cellSize,fill = color,border = 'black')
             
     for row in range(8):
         for col in range(8):
             piece = board.board[row][col]
-            label = ''
+            url = ''
             if isinstance(piece,Rook):
-                label = 'R'
+                url = 'cmu://1073385/43649031/Rook.png'
                 if piece.color == 'black':
-                    label = label.lower()
+                    url = 'cmu://1073385/43649038/RookB.png'
             elif isinstance(piece,Knight):
-                label = 'N'
+                url = 'cmu://1073385/43648951/Knight.png'
                 if piece.color == 'black':
-                    label = label.lower()
+                    url = 'cmu://1073385/43648964/KnightB.png'
             elif isinstance(piece,Bishop):
-                label = 'B'
+                url = 'cmu://1073385/43648924/Bishop.png'
                 if piece.color == 'black':
-                    label = label.lower()
+                    url = 'cmu://1073385/43648934/BishopB.png'
             elif isinstance(piece,Queen):
-                label = 'Q'
+                url = 'cmu://1073385/43649001/Queen.png'
                 if piece.color == 'black':
-                    label = label.lower()
+                    url = 'cmu://1073385/43649013/QueenB.png'
             elif isinstance(piece,King):
-                label = 'K'
+                url = 'cmu://1073385/43648943/King.png'
                 if piece.color == 'black':
-                    label = label.lower()
+                    url = 'cmu://1073385/43648945/KingB.png'
             elif isinstance(piece,Pawn):
-                label = 'P'
+                url = 'cmu://1073385/43648969/Pawn.png'
                 if piece.color == 'black':
-                    label = label.lower()
-            if label == '':
+                    url = 'cmu://1073385/43648981/PawnB.png'
+            if url == '':
                 pass
             else:
-                drawLabel(label,col*cellSize+0.5*cellSize,row*cellSize+0.5*cellSize,size = 18)
+                pieceSize = 0.8*cellSize
+                drawImage(url,col*cellSize+0.5*cellSize-0.5*pieceSize,row*cellSize+0.5*cellSize-0.5*pieceSize,width=pieceSize,height=pieceSize)
     drawRect(0,0,cellSize*8,cellSize*8,fill = None,border = 'black',borderWidth = 4.25)           
 
 def onAppStart(app):
+    starting(app)
+    
+def starting(app):
     app.width = 450
-    app.height =500
+    app.height = 500
     app.board = initializeBoard()
     app.turn = 'white'
     app.piecePosition = []
     app.isSelected = False
     app.selectedSquare = None
     app.moves = []
-    
+    app.isWhiteTurn = True
+    app.winner = None
 
 def redrawAll(app):
     drawBoard(app,app.board)
-    drawLabel(f'Current material difference is {app.board.materialDiff}',(app.height-50)//2,(app.height-25))
+    if app.isWhiteTurn:
+        drawLabel("It is currently white's turn",(app.height-50)*2//4,(app.height-25),size = 20)
+    else:
+        drawLabel("It is currently black's turn",(app.height-50)*2//4,(app.height-25),size = 20)
     for row,col in app.moves:
         drawCircle(col*(app.height-50)//8+(app.height-50)//16,row*(app.height-50)//8+(app.height-50)//16,10,fill = 'yellow')
-        
+    if app.winner !=None:
+        drawRect(0,0,app.width,app.height,fill='white')
+        drawLabel(f'The winner is {app.winner}!',app.width//2,app.height//3,size = 20)
+        drawLabel(f'Press R to Start a new game!',app.width//2,app.height*2//3,size = 20)
+   
 
 def onMousePress(app,mouseX,mouseY):
     cellSize = (app.height-50)//8
@@ -347,11 +482,16 @@ def onMousePress(app,mouseX,mouseY):
     col = mouseX//cellSize
     if not (row>7 or col>7 or row<0 or col<0):#Click inside the board
         if app.isSelected == False:#You need to choose the piece you want to move
-            if app.board.board[row][col] != None:
-                app.isSelected = True
-                app.selectedSquare = (row,col)
-                # print(f'isSelected,{type(app.board.board[row][col]).__name__} at {row},{col}')
-                app.moves = app.board.findLegalMoves(row,col)
+            piece = app.board.board[row][col]
+            if piece != None:
+                if (piece.color == 'white' and app.isWhiteTurn) or (piece.color == 'black' and not app.isWhiteTurn):
+                    app.isSelected = True
+                    app.selectedSquare = (row,col)
+                    # print(f'isSelected,{type(app.board.board[row][col]).__name__} at {row},{col}')
+                    app.moves = app.board.findLegalMoves(row,col)
+                    if app.moves == []:
+                        app.isSelected = False
+                        app.selectedSquare = None
                 
             else:
                 app.isSelected = False
@@ -359,17 +499,28 @@ def onMousePress(app,mouseX,mouseY):
                 # print(f'No selecting legal piece at {row},{col}')
                 app.moves = []
         else:#you need to make your move
-            if (app.board.board[row][col] == None) and (row,col) not in app.moves:
+            if (row,col) not in app.moves :
                 app.isSelected = False
                 app.selectedSquare = None
-                # print('It does not seems to be a legal move')
+                #print('It does not seems to be a legal move')
                 app.moves = []
+                piece = app.board.board[row][col]
+                if piece != None:
+                    if (piece.color == 'white' and app.isWhiteTurn) or (piece.color == 'black' and not app.isWhiteTurn):
+                        app.isSelected = True
+                        app.selectedSquare = (row,col)
+                        # print(f'isSelected,{type(app.board.board[row][col]).__name__} at {row},{col}')
+                        app.moves = app.board.findLegalMoves(row,col)
+                        if app.moves == []:
+                            app.isSelected = False
+                            app.selectedSquare = None
             elif (row,col) in app.moves:
                 fromR,fromC = app.selectedSquare
                 app.board.doMove(fromR,fromC,row,col)
                 app.isSelected = False
                 app.selectedSquare = None
                 app.moves = []
+                app.isWhiteTurn = not app.isWhiteTurn
                 # print(f'{type(app.board.board[row][col]).__name__} move from {(fromR,fromC)} to {(row,col)}')
                 
     else:#click outside the board
@@ -377,43 +528,17 @@ def onMousePress(app,mouseX,mouseY):
         app.selectedSquare = None
         # print('Outside the board')
         app.moves = []
+    if app.board.isWhiteLose == True and app.board.isBlackLose == False:
+        app.winner = 'black'
+    elif app.board.isBlackLose == True and app.board.isWhiteLose == False:
+        app.winner = 'white'
 
 
 
 def onKeyPress(app,key):
-    if key == 'r':
-        app.board.doMove(0,0,3,3)
-        print(app.board.board[3][3].row,app.board.board[3][3].col)
-        print(app.board.findLegalMoves(3,3))
-        print(app.board.blackARookMoved)
-    if key == 'k':
-        print(app.board.findLegalMoves(7,4))
-    if key == 'n':
-        print(app.board.findLegalMoves(7,1))
-        print(app.board.findLegalMoves(7,6))
-        print(app.board.findLegalMoves(0,1))
-        print(app.board.findLegalMoves(0,6))
-    if key == 'q':
-        print(app.board.findLegalMoves(0,3))
-        app.board.doMove(7,3,5,3)
-        print(app.board.findLegalMoves(5,3))
-    if key == 'p':
-        app.board.board[5][1]=Pawn(5,1,'black')
-        app.board.board[2][1]=Pawn(2,1,'black')
-        print(app.board.findLegalMoves(6,0))
-        print(app.board.findLegalMoves(1,0))
-    if key == 'b':
-        print(app.board.findLegalMoves(7,5))
-        app.board.doMove(1,3,2,3)
-        print(app.board.findLegalMoves(0,2))
-    if key == 'e':
-        app.board.doMove(6,7,3,7)
-        app.board.doMove(1,6,3,6)
-        print(app.board.findLegalMoves(3,7))
-    if key =='t':
-        app.board.doMove(3,7,2,6)
-    if key == 'i':
-        app.board.doMove(3,6,4,7)
+    if app.winner !=None:
+        if key == 'r':
+            starting(app)
     
     
 

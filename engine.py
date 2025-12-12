@@ -1118,11 +1118,11 @@ def sortMovesBySEE(board, moves):
 
 
 def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoot):
-    global currentHash # 必须引用这个全局变量，它现在实时代表当前局面
+    global currentHash 
     
-    # -------------------------------------------
+
     # 1. 查表 (TT Lookup) - 是否已经搜过这个局面？
-    # -------------------------------------------
+
     # 根节点(isRoot)通常不直接返回TT分数，因为我们需要确保拿到最新的BestMove用于打印
     # 或者防止哈希碰撞导致的根节点直接返回。但如果不是根节点，能偷懒就偷懒。
     
@@ -1148,9 +1148,9 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoo
             if alpha >= beta:
                 return tt_score
 
-    # -------------------------------------------
+
     # 2. 基础判断 (Base Cases)
-    # -------------------------------------------
+
     if depth == 0:
         # 进入静态搜索 (Quiescence Search)
         return quiescence(board, alpha, beta, maximizingPlayer, piecePositionMap)
@@ -1166,9 +1166,8 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoo
             # 逼和
             return 0
 
-    # -------------------------------------------
+
     # 3. 走法排序优化 (Move Ordering)
-    # -------------------------------------------
     # A. Hash Move 优先 (如果在TT里记住了最佳走法，先试它！)
     if tt_move is not None:
         # 必须检查这个 move 是否在当前的合法走法里（防止哈希冲突导致的非法移动）
@@ -1187,13 +1186,16 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoo
     else:
         moves = sortMovesBySEE(board, moves)
     
-    if isRoot and len(moves)>10:
-        bestMoves = moves[:9]
-        for fq,tq in moves[9:]:
+    beamWidth = 25 if isRoot else 6
+    
+    if len(moves)>beamWidth:
+        bestMoves = moves[:beamWidth]
+        for fq,tq in moves[beamWidth:]:
             tr,tc = algebraicToIndex(tq)
-            if board[tr][tc]!= '.':
+            if board[tr][tc]!= '.':#加入吃子步
                 bestMoves.append((fq,tq))
         moves = bestMoves
+            
 
     # -------------------------------------------
     # 4. 递归搜索 (Search Loop)
@@ -1240,9 +1242,8 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoo
                 
         final_val = minEval
 
-    # -------------------------------------------
     # 5. 存表 (TT Store)
-    # -------------------------------------------
+
     tt_flag = TT_EXACT
     if final_val <= alphaOriginal:
         tt_flag = TT_UPPERBOUND # Fail Low: 没超过 Alpha，说明是个烂局面 (Upper Bound)
@@ -1698,7 +1699,7 @@ def main():
         color = 'white' if numOfSteps%2 == 0 else 'black'
         if engineSide == 'both' or color == engineSide:
             startTime = time.time()
-            moveRecommend = findBestMove(board,color,4,piecePositionMap)
+            moveRecommend = findBestMove(board,color,5,piecePositionMap)
             if moveRecommend is None:
                 print('Mated')
                 break

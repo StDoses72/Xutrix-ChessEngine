@@ -29,11 +29,11 @@ cpdef int isSquareAttacked(list board, int row, int col, str byColor):
         pawnChar = 'p'
     for i in range(2):
         if byColor =='white':
-            dr = pawnDirWhite[i][0]
-            dc = pawnDirWhite[i][1]
-        else:
             dr = pawnDirBlack[i][0]
             dc = pawnDirBlack[i][1]
+        else:
+            dr = pawnDirWhite[i][0]
+            dc = pawnDirWhite[i][1]
         r = dr + row
         c = dc + col
         if 0 <= r < 8 and 0 <= c < 8:

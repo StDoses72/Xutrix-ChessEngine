@@ -2538,7 +2538,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
  *         pawnChar = 'p'
  *     for i in range(2):             # <<<<<<<<<<<<<<
  *         if byColor =='white':
- *             dr = pawnDirWhite[i][0]
+ *             dr = pawnDirBlack[i][0]
 */
   for (__pyx_t_2 = 0; __pyx_t_2 < 2; __pyx_t_2+=1) {
     __pyx_v_i = __pyx_t_2;
@@ -2547,8 +2547,8 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
  *         pawnChar = 'p'
  *     for i in range(2):
  *         if byColor =='white':             # <<<<<<<<<<<<<<
- *             dr = pawnDirWhite[i][0]
- *             dc = pawnDirWhite[i][1]
+ *             dr = pawnDirBlack[i][0]
+ *             dc = pawnDirBlack[i][1]
 */
     __pyx_t_1 = (__Pyx_PyUnicode_Equals(__pyx_v_byColor, __pyx_mstate_global->__pyx_n_u_white, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 31, __pyx_L1_error)
     if (__pyx_t_1) {
@@ -2556,11 +2556,11 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
       /* "isSquareAttacked.pyx":32
  *     for i in range(2):
  *         if byColor =='white':
- *             dr = pawnDirWhite[i][0]             # <<<<<<<<<<<<<<
- *             dc = pawnDirWhite[i][1]
+ *             dr = pawnDirBlack[i][0]             # <<<<<<<<<<<<<<
+ *             dc = pawnDirBlack[i][1]
  *         else:
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 32, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
@@ -2574,12 +2574,12 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 
       /* "isSquareAttacked.pyx":33
  *         if byColor =='white':
- *             dr = pawnDirWhite[i][0]
- *             dc = pawnDirWhite[i][1]             # <<<<<<<<<<<<<<
- *         else:
  *             dr = pawnDirBlack[i][0]
+ *             dc = pawnDirBlack[i][1]             # <<<<<<<<<<<<<<
+ *         else:
+ *             dr = pawnDirWhite[i][0]
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 33, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 33, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
@@ -2595,21 +2595,21 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
  *         pawnChar = 'p'
  *     for i in range(2):
  *         if byColor =='white':             # <<<<<<<<<<<<<<
- *             dr = pawnDirWhite[i][0]
- *             dc = pawnDirWhite[i][1]
+ *             dr = pawnDirBlack[i][0]
+ *             dc = pawnDirBlack[i][1]
 */
       goto __pyx_L6;
     }
 
     /* "isSquareAttacked.pyx":35
- *             dc = pawnDirWhite[i][1]
- *         else:
- *             dr = pawnDirBlack[i][0]             # <<<<<<<<<<<<<<
  *             dc = pawnDirBlack[i][1]
+ *         else:
+ *             dr = pawnDirWhite[i][0]             # <<<<<<<<<<<<<<
+ *             dc = pawnDirWhite[i][1]
  *         r = dr + row
 */
     /*else*/ {
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 35, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
@@ -2623,12 +2623,12 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
 
       /* "isSquareAttacked.pyx":36
  *         else:
- *             dr = pawnDirBlack[i][0]
- *             dc = pawnDirBlack[i][1]             # <<<<<<<<<<<<<<
+ *             dr = pawnDirWhite[i][0]
+ *             dc = pawnDirWhite[i][1]             # <<<<<<<<<<<<<<
  *         r = dr + row
  *         c = dc + col
 */
-      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirBlack); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 36, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pawnDirWhite); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_v_i, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 36, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
@@ -2643,8 +2643,8 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_L6:;
 
     /* "isSquareAttacked.pyx":37
- *             dr = pawnDirBlack[i][0]
- *             dc = pawnDirBlack[i][1]
+ *             dr = pawnDirWhite[i][0]
+ *             dc = pawnDirWhite[i][1]
  *         r = dr + row             # <<<<<<<<<<<<<<
  *         c = dc + col
  *         if 0 <= r < 8 and 0 <= c < 8:
@@ -2652,7 +2652,7 @@ static int __pyx_f_16isSquareAttacked_isSquareAttacked(PyObject *__pyx_v_board, 
     __pyx_v_r = (__pyx_v_dr + __pyx_v_row);
 
     /* "isSquareAttacked.pyx":38
- *             dc = pawnDirBlack[i][1]
+ *             dc = pawnDirWhite[i][1]
  *         r = dr + row
  *         c = dc + col             # <<<<<<<<<<<<<<
  *         if 0 <= r < 8 and 0 <= c < 8:
