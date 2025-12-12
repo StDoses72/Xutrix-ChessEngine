@@ -1,6 +1,10 @@
 # Xutrix-ChessEngine
 A self-developed chess engine
 
+2025/12/12
+
+Optimize the use of beam search, adjust the beamWidth. Fixed the problem of pawn check in isSquareAttacked. Right now able to compute within the depth of 5.
+
 2025/12/11
 
 Introduce the idea of TT table. By using the function of Zobrist hashing. Updated the SEE function to be more reasonable. Introduce the idea of beam search. Fixed the improper use of deepcopy. The overall efficiency increased by 5.6 times faster.
