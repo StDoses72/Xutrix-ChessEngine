@@ -7,7 +7,9 @@ from collections import deque
 import random
 import time
 from isSquareAttacked import isSquareAttacked
+from movegen import isKingChecked,generatePawnMoves,generateKnightMoves,generateBishopMoves,generateRookMoves,generateQueenMoves,generateKingMoves,generateAllPseudoMoves
 import logging
+import pesto
 
 
 
@@ -213,8 +215,14 @@ def movePiece(board, fromSquare, toSquare):#This is for user to use
                 setEnPassant = True
         elif toSquare == enPassantSquare:
             if piece == 'P' and enPassantColor == 'black':
+                capturedPawnSq = indexToAlgebraic(fromRow, toCol)
+                if capturedPawnSq in pawnPosition['black']:
+                    pawnPosition['black'].remove(capturedPawnSq)
                 board[fromRow][toCol] = '.'
             elif piece == 'p' and enPassantColor == 'white':
+                capturedPawnSq = indexToAlgebraic(fromRow, toCol)
+                if capturedPawnSq in pawnPosition['white']:
+                    pawnPosition['white'].remove(capturedPawnSq)
                 board[fromRow][toCol] = '.'
         
 
@@ -257,8 +265,12 @@ def movePiece(board, fromSquare, toSquare):#This is for user to use
     
     if piece == 'P' and toRow == 0:
         board[toRow][toCol] = 'Q'
+        if toSquare in pawnPosition['white']:
+            pawnPosition['white'].remove(toSquare)
     elif piece == 'p' and toRow == 7:
         board[toRow][toCol] = 'q'
+        if toSquare in pawnPosition['black']:
+            pawnPosition['black'].remove(toSquare)
 
 
     if piece == 'K':
@@ -556,188 +568,10 @@ def undoMove(board):
 
 
 
-def generatePawnMoves(board, square):
-    global enPassantSquare,enPassantColor
-    potentialMove = []
-    fromRow, fromCol = algebraicToIndex(square)
-    piece = board[fromRow][fromCol]
-    if piece == '.':
-        return potentialMove
 
-    drow = -1 if piece.isupper() else 1
-    targetRow = fromRow + drow
-    if not (0 <= targetRow < 8):
-        return potentialMove
-
-    
-    for dcol in [-1, 1]:
-        targetCol = fromCol + dcol
-        if 0 <= targetCol < 8 and isOpponent(piece, board[targetRow][targetCol]):
-            potentialMove.append(indexToAlgebraic(targetRow, targetCol))
-
-
-
-    if enPassantSquare != None:
-        enPassantRow, enPassantCol = algebraicToIndex(enPassantSquare)
-        if enPassantColor == 'white':
-            if piece == 'p' and fromRow == enPassantRow-1 and (fromCol == enPassantCol-1 or fromCol == enPassantCol+1):
-                potentialMove.append(enPassantSquare)
-        elif enPassantColor == 'black':
-            if piece == 'P' and fromRow == enPassantRow+1 and (fromCol == enPassantCol-1 or fromCol == enPassantCol+1):
-                potentialMove.append(enPassantSquare)
-            
-    
-    if board[targetRow][fromCol] == '.':
-        potentialMove.append(indexToAlgebraic(targetRow, fromCol))
-        
-        startRow = 6 if piece.isupper() else 1
-        if fromRow == startRow and board[targetRow + drow][fromCol] == '.':
-            potentialMove.append(indexToAlgebraic(targetRow + drow, fromCol))
-            
-
-    
-        
-    
-    return potentialMove
-
-def generateKnightMoves(board,square):
-    potentialMove = []
-    fromRow,fromCol = algebraicToIndex(square)
-    piece = board[fromRow][fromCol]
-    if piece=='.':
-        return potentialMove
-    directionList = [(1,2),(1,-2),(2,1),(2,-1),(-1,2),(-1,-2),(-2,1),(-2,-1)]
-    for drow,dcol in directionList:
-        if ((0 <= fromRow + drow < 8 and 0 <= fromCol + dcol < 8) and
-        (board[fromRow+drow][fromCol+dcol]=='.' or isOpponent(piece,board[fromRow+drow][fromCol+dcol]))):
-            toSquare = indexToAlgebraic(fromRow+drow, fromCol+dcol)
-            potentialMove.append(toSquare)                
-    return potentialMove
-
-def generateSlidingPieceMoves(board,square,directionList):
-    potentialMove = []
-    fromRow,fromCol = algebraicToIndex(square)
-    piece=board[fromRow][fromCol]
-    
-    for drow,dcol in directionList:
-        tempRow,tempCol = fromRow,fromCol
-        while True:
-            tempRow+=drow
-            tempCol+=dcol
-            
-            if not (0 <= tempRow < 8 and 0 <= tempCol < 8):
-                break 
-            tempSquare = board[tempRow][tempCol]
-            if (tempSquare=='.'):
-                toSquare = indexToAlgebraic(tempRow, tempCol)
-                potentialMove.append(toSquare)
-            elif not(isOpponent(piece,tempSquare)):
-                break
-            elif isOpponent(piece,tempSquare):
-                toSquare = indexToAlgebraic(tempRow, tempCol)
-                potentialMove.append(toSquare)
-                break
-            else:
-                break
-            
-    return potentialMove
-
-def generateBishopMoves(board,square):
-    return generateSlidingPieceMoves(board,square,[(-1,-1),(-1,1),(1,-1),(1,1)])
-
-def generateRookMoves(board,square):
-    return generateSlidingPieceMoves(board,square,[(1,0),(-1,0),(0,1),(0,-1)])
-
-def generateQueenMoves(board,square):
-    return generateSlidingPieceMoves(board,square,[(1,0),(-1,0),(0,1),(0,-1),(-1,-1),(-1,1),(1,-1),(1,1)])
-    
-    
-def generateKingMoves(board, square):
-    global castling_rights
-    potentialMove = []
-    fromRow, fromCol = algebraicToIndex(square)
-    piece = board[fromRow][fromCol]
-    if piece == '.':
-        return potentialMove
-
-    directionList = [(1, 0), (-1, 0), (0, 1), (0, -1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
-    for drow, dcol in directionList:
-        if (0 <= fromRow + drow < 8 and 0 <= fromCol + dcol < 8) and (
-            board[fromRow + drow][fromCol + dcol] == '.' or isOpponent(piece, board[fromRow + drow][fromCol + dcol])
-        ):
-            toSquare = indexToAlgebraic(fromRow + drow, fromCol + dcol)
-            potentialMove.append(toSquare)
-
-
-    if piece == 'K' and not castling_rights['white_king_moved'] and not isKingChecked(board, 'white'):
-        # 短易位
-        if not castling_rights['white_rook_h_moved'] and board[7][7] == 'R':
-            if board[7][5] == '.' and board[7][6] == '.':
-                if (isSquareAttacked(board, 7, 5, 'black')==0) and (isSquareAttacked(board, 7, 6, 'black')==0):
-                    potentialMove.append('g1')
-        # 长易位
-        if not castling_rights['white_rook_a_moved'] and board[7][0] == 'R':
-            if board[7][1] == '.' and board[7][2] == '.' and board[7][3] == '.':
-                if (isSquareAttacked(board, 7, 3, 'black')==0) and (isSquareAttacked(board, 7, 2, 'black')==0):
-                    potentialMove.append('c1')
-
-    if piece == 'k' and not castling_rights['black_king_moved'] and not isKingChecked(board, 'black'):
-        # 短易位
-        if not castling_rights['black_rook_h_moved'] and board[0][7] == 'r':
-            if board[0][5] == '.' and board[0][6] == '.':
-                if (isSquareAttacked(board, 0, 5, 'white')==0) and (isSquareAttacked(board, 0, 6, 'white')==0):
-                    potentialMove.append('g8')  
-        # 长易位
-        if not castling_rights['black_rook_a_moved'] and board[0][0] == 'r':
-            if board[0][1] == '.' and board[0][2] == '.' and board[0][3] == '.':
-                if (isSquareAttacked(board, 0, 3, 'white')==0) and (isSquareAttacked(board, 0, 2, 'white')==0):
-                    potentialMove.append('c8')
-
-    return potentialMove
-    
-def generateAllPseudoMoves(board, color):
-    PseudoMoves = []
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece=='.':
-                continue
-            if color == 'white' and piece.islower():
-                continue
-            if color == 'black' and piece.isupper():
-                continue
-            piecetype = piece.lower()
-            square = indexToAlgebraic(row,col)
-            if piecetype == 'p':
-                moveList = generatePawnMoves(board,square)
-            elif piecetype == 'n':
-                moveList = generateKnightMoves(board,square)
-            elif piecetype == 'b':
-                moveList = generateBishopMoves(board,square)
-            elif piecetype == 'r':
-                moveList = generateRookMoves(board,square)
-            elif piecetype == 'q':
-                moveList = generateQueenMoves(board,square)
-            elif piecetype == 'k':
-                moveList = generateKingMoves(board,square)
-            
-            for toSquare in moveList:
-                PseudoMoves.append((square,toSquare))
-    return PseudoMoves
-                
-            
-            
-def isKingChecked(board, color):
-    kingChar = 'K' if color == 'white' else 'k'
-    for row in range(8):
-        for col in range(8):
-            if board[row][col] == kingChar:
-                kingRow, kingCol = row, col
-                opponentColor = 'black' if color == 'white' else 'white'
-                return (isSquareAttacked(board, kingRow, kingCol, opponentColor)>0)
-    return False
 
 def generateAlllegalMoves(board, color):
+    global enPassantSquare,enPassantColor,castling_rights
     legalMoves = []
     PseudoMoves = []
     for row in range(8):
@@ -752,7 +586,7 @@ def generateAlllegalMoves(board, color):
             piecetype = piece.lower()
             square = indexToAlgebraic(row,col)
             if piecetype == 'p':
-                moveList = generatePawnMoves(board,square)
+                moveList = generatePawnMoves(board,square,enPassantSquare,enPassantColor)
             elif piecetype == 'n':
                 moveList = generateKnightMoves(board,square)
             elif piecetype == 'b':
@@ -762,7 +596,7 @@ def generateAlllegalMoves(board, color):
             elif piecetype == 'q':
                 moveList = generateQueenMoves(board,square)
             elif piecetype == 'k':
-                moveList = generateKingMoves(board,square)
+                moveList = generateKingMoves(board,square,castling_rights)
             
             for toSquare in moveList:
                 PseudoMoves.append((square,toSquare))
@@ -785,7 +619,8 @@ def generateAllCaptureMoves(board,color):
                 captureMoves.append((fromSquare,toSquare))
     return captureMoves
 
-    
+
+
 def evaluateBoard(board,piecePositionMap,mobilityHint=None):
     global isBlackQueenExist,isWhiteQueenExist,pawnPosition,whiteKingCastled,blackKingCastled,centerWeights,numOfSteps
     
@@ -864,7 +699,7 @@ def evaluateBoard(board,piecePositionMap,mobilityHint=None):
             #Compute for mobility score, which has the coefficient of (0.3 if not isEndGame else 0.1)
             fromSquare = indexToAlgebraic(row,col)
             if piece == 'P' or piece == 'p':
-                moveForPiece = generatePawnMoves(board,fromSquare)
+                moveForPiece = generatePawnMoves(board,fromSquare,enPassantSquare,enPassantColor)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['P']:
                     addingscore = mobilityCap['P']
@@ -910,7 +745,7 @@ def evaluateBoard(board,piecePositionMap,mobilityHint=None):
                     score-=addingscore*(0.3 if not isEndGame else 0.1)
             elif piece == 'K' or piece == 'k':
                 #Kings mobility
-                moveForPiece = generateKingMoves(board,fromSquare)
+                moveForPiece = generateKingMoves(board,fromSquare,castling_rights)
                 addingscore = len(moveForPiece)*pieceCoefficientMap[piece.upper()]
                 if addingscore >= mobilityCap['K']:
                     addingscore = mobilityCap['K']
@@ -965,50 +800,10 @@ def evaluateBoard(board,piecePositionMap,mobilityHint=None):
         trow,tcol = algebraicToIndex(pst)
         if numOfSteps<8 and (trow,tcol) in centerSquare:
             score-=12
-                
-                
-    if not isEndGame:
-        # Knights undeveloped
-        if board[7][1] == 'N': score -= 15   # b1 knight
-        if board[7][6] == 'N': score -= 15   # g1 knight
-        if board[0][1] == 'n': score += 15
-        if board[0][6] == 'n': score += 15
-
-        # Bishops undeveloped
-        if board[7][2] == 'B': score -= 10   # c1 bishop
-        if board[7][5] == 'B': score -= 10   # f1 bishop
-        if board[0][2] == 'b': score += 10
-        if board[0][5] == 'b': score += 10
-
-        #Rook blocked by unmoved knight/bishop
-        if board[7][0] == 'R' and (board[7][1] == 'N' or board[7][2] == 'B'):
-            score -= 15
-        if board[7][7] == 'R' and (board[7][6] == 'N' or board[7][5] == 'B'):
-            score -= 15
-
-        if board[0][0] == 'r' and (board[0][1] == 'n' or board[0][2] == 'b'):
-            score += 15
-        if board[0][7] == 'r' and (board[0][6] == 'n' or board[0][5] == 'b'):
-            score += 15
-        
-        if board[7][4] == 'K' and not whiteKingCastled:
-            # Not Castled and Rook blocked
-            if board[7][5] == 'R' or board[7][6] == 'R' or board[7][1]=='R' or board[7][2]=='R':
-                score -= 50
-
-        if board[0][4] == 'k' and not blackKingCastled:
-            if board[0][5] == 'r' or board[0][6] == 'r' or board[0][1]=='r' or board[0][2]=='r':
-                score += 50
-
-
-
-    #reward castle
-    if whiteKingCastled: score += 25*(1.0 if not isEndGame else 0.2)
-    if blackKingCastled: score -= 25*(1.0 if not isEndGame else 0.2)
-    
-    
 
     return score
+
+    
 
 
 
@@ -1023,8 +818,6 @@ def importPositionMap():
             arr = np.array(data[piece], dtype=float)
             
             
-            arr = np.nan_to_num(arr, nan=0.0)
-            arr -= np.mean(arr)
             
             piecePositionMap[piece] = arr
             piecePositionMap[piece.lower()] = arr[::-1]
@@ -1117,6 +910,37 @@ def sortMovesBySEE(board, moves):
     return [m for s, m in scoredMoves]
 
 
+
+def sortMovesByMVV_LVA(board, moves):
+    PIECE_VALUES = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000, 
+                'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000}
+    scoredMoves = []
+    for move in moves:
+        fromSquare, toSquare = move
+        
+        # 获取起点和终点的棋子 (假设你的 algebraicToIndex 和 board 访问很快)
+        # 最好直接传 int board 或者直接在这里访问，别调用太复杂的 helper
+        r_to, c_to = algebraicToIndex(toSquare)
+        target = board[r_to][c_to]
+        
+        if target != '.':
+            r_from, c_from = algebraicToIndex(fromSquare)
+            attacker = board[r_from][c_from]
+            
+            # 🔥 MVV-LVA 公式：
+            # 10 * 受害者价值 - 攻击者价值
+            # 例子：兵(100) 吃 后(900) -> 10*900 - 100 = 8900 (极高分)
+            # 例子：后(900) 吃 兵(100) -> 10*100 - 900 = 100 (低分)
+            score = 10 * PIECE_VALUES[target] - PIECE_VALUES[attacker] + 10000
+        else:
+            score = 0 # 暂时不排序非吃子
+            
+        scoredMoves.append((score, move))
+    
+    # Python 的 sort 是 Timsort，非常快
+    scoredMoves.sort(key=lambda x: x[0], reverse=True)
+    return [m for s, m in scoredMoves]
+
 def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoot):
     global currentHash 
     
@@ -1181,10 +1005,10 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, piecePositionMap, isRoo
     # 这里为了简单，假设 sortMovesBySEE 是稳定的，或者我们接受它重排)
     # 最优写法：保持 Hash Move 第一，剩下的排序。
     if tt_move and moves[0] == tt_move:
-        rest_moves = sortMovesBySEE(board, moves[1:])
+        rest_moves = sortMovesByMVV_LVA(board, moves[1:])
         moves = [tt_move] + rest_moves
     else:
-        moves = sortMovesBySEE(board, moves)
+        moves = sortMovesByMVV_LVA(board, moves)
     
     beamWidth = 25 if isRoot else 6
     
@@ -1625,7 +1449,34 @@ def computeHash(board,color):
     return hashValue
 
 
-
+def get_pv_line(board, depth):
+    # 从置换表中提取最佳线路
+    global currentHash, TRANSPOSITION_TABLE
+    line = []
+    
+    # 我们需要模拟走棋来获取后续的 hash，所以要用到 board 副本
+    # 或者小心地 do/undo
+    # 这里简单演示逻辑
+    seen_hashes = set()
+    
+    for _ in range(depth):
+        if currentHash in TRANSPOSITION_TABLE:
+            move = TRANSPOSITION_TABLE[currentHash][3] # best_move
+            if move is None: break
+            
+            line.append(move)
+            seen_hashes.add(currentHash)
+            
+            # 必须真的走这步棋才能算出下一个 hash
+            doMove(board, move[0], move[1])
+        else:
+            break
+            
+    # 恢复棋盘
+    for _ in range(len(line)):
+        undoMove(board)
+        
+    return line
         
 def findBestMove(board,color,depth,piecePositionMap):
     bestMove = None
@@ -1637,13 +1488,7 @@ def findBestMove(board,color,depth,piecePositionMap):
     for fromSquare,toSquare in moves:
         doMove(board,fromSquare,toSquare)
         movingPiece = board[algebraicToIndex(toSquare)[0]][algebraicToIndex(toSquare)[1]]
-        queenMovePenalty = 0
-        if movingPiece == 'Q' and numOfSteps < 10:
-            queenMovePenalty = -100
-        elif movingPiece == 'q' and numOfSteps < 10:
-            queenMovePenalty = 100
         futureScore = minimax(board,depth-1,-float('inf'), float('inf'),not maximizingPlayer,piecePositionMap,True)
-        futureScore += queenMovePenalty
         undoMove(board)
         logging.debug(f"[ROOT] Move {fromSquare}->{toSquare} scored {futureScore:.2f}")
         if maximizingPlayer:
@@ -1661,6 +1506,9 @@ def findBestMove(board,color,depth,piecePositionMap):
         logging.debug(f"✅ Engine selects move {bestMove} with score {bestScore:.2f}")
     else:
         logging.debug("❌ No legal move found (checkmate or stalemate)")
+    if bestMove:
+        pv_line = get_pv_line(board, depth)
+        print(f"Engine thinking: Score={bestScore:.2f}, Line: {pv_line}")
     return bestMove
     
 def isOpponent(piece1,piece2):
@@ -1699,7 +1547,7 @@ def main():
         color = 'white' if numOfSteps%2 == 0 else 'black'
         if engineSide == 'both' or color == engineSide:
             startTime = time.time()
-            moveRecommend = findBestMove(board,color,5,piecePositionMap)
+            moveRecommend = findBestMove(board,color,6,piecePositionMap)
             if moveRecommend is None:
                 print('Mated')
                 break
@@ -1748,7 +1596,185 @@ if __name__ == "__main__":
 
 
 
+# def generatePawnMoves(board, square,enPassantSquare,enPassantColor):
+#     potentialMove = []
+#     fromRow, fromCol = algebraicToIndex(square)
+#     piece = board[fromRow][fromCol]
+#     if piece == '.':
+#         return potentialMove
 
+#     drow = -1 if piece.isupper() else 1
+#     targetRow = fromRow + drow
+#     if not (0 <= targetRow < 8):
+#         return potentialMove
+
+    
+#     for dcol in [-1, 1]:
+#         targetCol = fromCol + dcol
+#         if 0 <= targetCol < 8 and isOpponent(piece, board[targetRow][targetCol]):
+#             potentialMove.append(indexToAlgebraic(targetRow, targetCol))
+
+
+
+#     if enPassantSquare != None:
+#         enPassantRow, enPassantCol = algebraicToIndex(enPassantSquare)
+#         if enPassantColor == 'white':
+#             if piece == 'p' and fromRow == enPassantRow-1 and (fromCol == enPassantCol-1 or fromCol == enPassantCol+1):
+#                 potentialMove.append(enPassantSquare)
+#         elif enPassantColor == 'black':
+#             if piece == 'P' and fromRow == enPassantRow+1 and (fromCol == enPassantCol-1 or fromCol == enPassantCol+1):
+#                 potentialMove.append(enPassantSquare)
+            
+    
+#     if board[targetRow][fromCol] == '.':
+#         potentialMove.append(indexToAlgebraic(targetRow, fromCol))
+        
+#         startRow = 6 if piece.isupper() else 1
+#         if fromRow == startRow and board[targetRow + drow][fromCol] == '.':
+#             potentialMove.append(indexToAlgebraic(targetRow + drow, fromCol))
+            
+
+    
+        
+    
+#     return potentialMove
+
+# def generateKnightMoves(board,square):
+#     potentialMove = []
+#     fromRow,fromCol = algebraicToIndex(square)
+#     piece = board[fromRow][fromCol]
+#     if piece=='.':
+#         return potentialMove
+#     directionList = [(1,2),(1,-2),(2,1),(2,-1),(-1,2),(-1,-2),(-2,1),(-2,-1)]
+#     for drow,dcol in directionList:
+#         if ((0 <= fromRow + drow < 8 and 0 <= fromCol + dcol < 8) and
+#         (board[fromRow+drow][fromCol+dcol]=='.' or isOpponent(piece,board[fromRow+drow][fromCol+dcol]))):
+#             toSquare = indexToAlgebraic(fromRow+drow, fromCol+dcol)
+#             potentialMove.append(toSquare)                
+#     return potentialMove
+
+# def generateSlidingPieceMoves(board,square,directionList):
+#     potentialMove = []
+#     fromRow,fromCol = algebraicToIndex(square)
+#     piece=board[fromRow][fromCol]
+    
+#     for drow,dcol in directionList:
+#         tempRow,tempCol = fromRow,fromCol
+#         while True:
+#             tempRow+=drow
+#             tempCol+=dcol
+            
+#             if not (0 <= tempRow < 8 and 0 <= tempCol < 8):
+#                 break 
+#             tempSquare = board[tempRow][tempCol]
+#             if (tempSquare=='.'):
+#                 toSquare = indexToAlgebraic(tempRow, tempCol)
+#                 potentialMove.append(toSquare)
+#             elif not(isOpponent(piece,tempSquare)):
+#                 break
+#             elif isOpponent(piece,tempSquare):
+#                 toSquare = indexToAlgebraic(tempRow, tempCol)
+#                 potentialMove.append(toSquare)
+#                 break
+#             else:
+#                 break
+            
+#     return potentialMove
+
+# def generateBishopMoves(board,square):
+#     return generateSlidingPieceMoves(board,square,[(-1,-1),(-1,1),(1,-1),(1,1)])
+
+# def generateRookMoves(board,square):
+#     return generateSlidingPieceMoves(board,square,[(1,0),(-1,0),(0,1),(0,-1)])
+
+# def generateQueenMoves(board,square):
+#     return generateSlidingPieceMoves(board,square,[(1,0),(-1,0),(0,1),(0,-1),(-1,-1),(-1,1),(1,-1),(1,1)])
+    
+    
+# def generateKingMoves(board, square,castling_rights):
+#     potentialMove = []
+#     fromRow, fromCol = algebraicToIndex(square)
+#     piece = board[fromRow][fromCol]
+#     if piece == '.':
+#         return potentialMove
+
+#     directionList = [(1, 0), (-1, 0), (0, 1), (0, -1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+#     for drow, dcol in directionList:
+#         if (0 <= fromRow + drow < 8 and 0 <= fromCol + dcol < 8) and (
+#             board[fromRow + drow][fromCol + dcol] == '.' or isOpponent(piece, board[fromRow + drow][fromCol + dcol])
+#         ):
+#             toSquare = indexToAlgebraic(fromRow + drow, fromCol + dcol)
+#             potentialMove.append(toSquare)
+
+
+#     if piece == 'K' and not castling_rights['white_king_moved'] and not isKingChecked(board, 'white'):
+#         # 短易位
+#         if not castling_rights['white_rook_h_moved'] and board[7][7] == 'R':
+#             if board[7][5] == '.' and board[7][6] == '.':
+#                 if (isSquareAttacked(board, 7, 5, 'black')==0) and (isSquareAttacked(board, 7, 6, 'black')==0):
+#                     potentialMove.append('g1')
+#         # 长易位
+#         if not castling_rights['white_rook_a_moved'] and board[7][0] == 'R':
+#             if board[7][1] == '.' and board[7][2] == '.' and board[7][3] == '.':
+#                 if (isSquareAttacked(board, 7, 3, 'black')==0) and (isSquareAttacked(board, 7, 2, 'black')==0):
+#                     potentialMove.append('c1')
+
+#     if piece == 'k' and not castling_rights['black_king_moved'] and not isKingChecked(board, 'black'):
+#         # 短易位
+#         if not castling_rights['black_rook_h_moved'] and board[0][7] == 'r':
+#             if board[0][5] == '.' and board[0][6] == '.':
+#                 if (isSquareAttacked(board, 0, 5, 'white')==0) and (isSquareAttacked(board, 0, 6, 'white')==0):
+#                     potentialMove.append('g8')  
+#         # 长易位
+#         if not castling_rights['black_rook_a_moved'] and board[0][0] == 'r':
+#             if board[0][1] == '.' and board[0][2] == '.' and board[0][3] == '.':
+#                 if (isSquareAttacked(board, 0, 3, 'white')==0) and (isSquareAttacked(board, 0, 2, 'white')==0):
+#                     potentialMove.append('c8')
+
+#     return potentialMove
+    
+# def generateAllPseudoMoves(board, color):
+#     global enPassantSquare,enPassantColor,castling_rights
+#     PseudoMoves = []
+#     for row in range(8):
+#         for col in range(8):
+#             piece = board[row][col]
+#             if piece=='.':
+#                 continue
+#             if color == 'white' and piece.islower():
+#                 continue
+#             if color == 'black' and piece.isupper():
+#                 continue
+#             piecetype = piece.lower()
+#             square = indexToAlgebraic(row,col)
+#             if piecetype == 'p':
+#                 moveList = generatePawnMoves(board,square,enPassantSquare,enPassantColor)
+#             elif piecetype == 'n':
+#                 moveList = generateKnightMoves(board,square)
+#             elif piecetype == 'b':
+#                 moveList = generateBishopMoves(board,square)
+#             elif piecetype == 'r':
+#                 moveList = generateRookMoves(board,square)
+#             elif piecetype == 'q':
+#                 moveList = generateQueenMoves(board,square)
+#             elif piecetype == 'k':
+#                 moveList = generateKingMoves(board,square,castling_rights)
+            
+#             for toSquare in moveList:
+#                 PseudoMoves.append((square,toSquare))
+#     return PseudoMoves
+                
+            
+            
+# def isKingChecked(board, color):
+#     kingChar = 'K' if color == 'white' else 'k'
+#     for row in range(8):
+#         for col in range(8):
+#             if board[row][col] == kingChar:
+#                 kingRow, kingCol = row, col
+#                 opponentColor = 'black' if color == 'white' else 'white'
+#                 return (isSquareAttacked(board, kingRow, kingCol, opponentColor)>0)
+#     return False
 
 # def testBlackShortCastle(board, depth=3):
 #     """
