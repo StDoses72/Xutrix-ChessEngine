@@ -21,12 +21,19 @@
 
 .
 ├── engine.py                # Main game loop and engine logic
+
 ├── movegen.pyx              # Cythonized move generation
+
 ├── isSquareAttacked.pyx     # Cythonized attack logic
+
 ├── pesto.py                 # PeSTO evaluation tables and logic
+
 ├── opening.py               # Lightweight opening library
+
 ├── setup.py                 # Compilation script for Cython modules
+
 ├── piecePosition/           # PST JSON files (p_table_adjusted.json, etc.)
+
 └── README.md                # Project documentation
 
 
@@ -79,6 +86,7 @@ The engine calculates a score based on material and position. By utilizing the *
 ## 🎓 About the Author
 
 Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning university students in its first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+
 
 
 
