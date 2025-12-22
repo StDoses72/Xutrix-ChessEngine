@@ -33,13 +33,11 @@
 ## 📦 Installation & Setup
 
 Prerequisites
-    Python 3.8+
-
+    Python 3.8
     NumPy: pip install numpy
-
     Cython(if the existing cython file does not work): Required to compile the .pyx files for performance.
-
     You MUST run the compilation command python setup.py build_ext --inplace before starting the engine for the first time.
+    Please make sure that you have the environment for C++ compilation or cython compilaation environment before using setup.py
 
 ## 🎮 How to Play
 
@@ -81,6 +79,7 @@ The engine calculates a score based on material and position. By utilizing the *
 ## 🎓 About the Author
 
 Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning university students in its first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+
 
 
 
