@@ -19,7 +19,7 @@
 
 ## 🛠 Project Structure
 
-.
+
 ├── engine.py                # Main game loop and engine logic
 
 ├── movegen.pyx              # Cythonized move generation
@@ -86,6 +86,7 @@ The engine calculates a score based on material and position. By utilizing the *
 ## 🎓 About the Author
 
 Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning university students in its first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+
 
 
 
