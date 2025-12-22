@@ -2,12 +2,13 @@ from setuptools import setup, Extension
 from Cython.Build import cythonize
 import sys, os
 
-print(f"Building with Python {sys.version}", flush=True)
-print("CWD:", os.getcwd(), flush=True)
-print("FILES:", sorted([f for f in os.listdir('.') if f.endswith(('.pyx','.py','.pxd','.pxi'))]), flush=True)
+
+is_windows = sys.platform.startswith('win')
 
 common_macros = [("Py_LIMITED_API", "0x03080000")]
-common_compile_args = ["/O2"]
+
+
+common_compile_args = ["/O2"] if is_windows else ["-O2"]
 
 extensions = [
     Extension(
@@ -25,10 +26,6 @@ extensions = [
         extra_compile_args=common_compile_args,
     ),
 ]
-
-print("EXTENSIONS:", [e.name for e in extensions], flush=True)
-for e in extensions:
-    print(f"  - {e.name} sources={e.sources}", flush=True)
 
 setup(
     name="Xustrix",
