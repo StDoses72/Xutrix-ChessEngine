@@ -54,9 +54,7 @@ python engine.py
 
 Select Mode: Choose whether the engine plays as White, Black, Both, or None.
 Input Moves: Use standard algebraic notation (start square to end square), for example:
-e2 e4
-
-g1 f3
+e2 e4 or g1 f3
 
 Quit: Type q at any time to exit the game.
 Note: This version is a prototype. It currently does not strictly enforce move legality for human input—it is designed for users who follow standard chess rules.
@@ -86,6 +84,7 @@ The engine calculates a score based on material and position. By utilizing the *
 ## 🎓 About the Author
 
 Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning university students in its first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+
 
 
 
