@@ -83,7 +83,8 @@ The engine calculates a score based on material and position. By utilizing the *
 
 ## 🎓 About the Author
 
-Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning university students in its first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning students， in the first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+
 
 
 
