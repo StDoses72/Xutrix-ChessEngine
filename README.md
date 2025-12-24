@@ -14,27 +14,7 @@
 * **Memory Efficiency**: Implements **Zobrist Hashing** and a **Transposition Table (TT)** to cache and reuse search results, significantly reducing redundant calculations.
 * **Opening Book**: Includes a lightweight `opening.py` module to handle initial theory moves.
 * **Interactive CLI**: A simple command-line interface for human-vs-engine or engine-vs-engine matchups.
-
----
-
-## 🛠 Project Structure
-
-
-├── engine.py                # Main game loop and engine logic
-
-├── movegen.pyx              # Cythonized move generation
-
-├── isSquareAttacked.pyx     # Cythonized attack logic
-
-├── pesto.py                 # PeSTO evaluation tables and logic
-
-├── opening.py               # Lightweight opening library
-
-├── setup.py                 # Compilation script for Cython modules
-
-├── piecePosition/           # PST JSON files (p_table_adjusted.json, etc.)
-
-└── README.md                # Project documentation
+
 
 
 ## 📦 Installation & Setup
