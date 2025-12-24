@@ -21,9 +21,13 @@
 
 Prerequisites
     Python 3.8
+
     NumPy: pip install numpy
+
     Cython(if the existing cython file does not work): Required to compile the .pyx files for performance.
+
     You MUST run the compilation command python setup.py build_ext --inplace before starting the engine for the first time.
+
     Please make sure that you have the environment for C++ compilation or cython compilaation environment before using setup.py
 
 ## 🎮 How to Play
