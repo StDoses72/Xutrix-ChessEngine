@@ -1,78 +1,187 @@
-# Xustrix Chess Engine
+# Xutrix Chess Engine
 
-**Xustrix** is a lightweight, high-performance chess engine prototype developed as a passion project by a first-year Statistics & Machine Learning student. It combines classic search algorithms with optimized evaluation techniques and hardware-level speed enhancements via Cython.
+Xutrix is a chess engine project currently being rebuilt around a C core. The
+original Python/Cython prototype has been archived, and the active engine now
+lives in `c_engine/`.
 
----
+The current goal is to keep a fast, understandable classical search engine while
+adding an NNUE-style evaluation pipeline that can be trained from Stockfish
+labels.
 
-## 🚀 Features
+## What Works Now
 
-* **Engine Core**: Built on a Minimax search framework with **Alpha-Beta pruning**.
-* **Performance Optimized**: Critical components like move generation (`movegen.pyx`) and attack detection (`isSquareAttacked.pyx`) are implemented in **Cython** for near-C execution speeds.
-* **Advanced Evaluation**:
-    * **PeSTO’s Piece-Square Tables (PST)**: Dynamically adjusts piece values based on the game phase (Middle-game vs. End-game).
-    * **SEE (Static Exchange Evaluation)**: Used for move ordering to prioritize tactically sound captures.
-* **Memory Efficiency**: Implements **Zobrist Hashing** and a **Transposition Table (TT)** to cache and reuse search results, significantly reducing redundant calculations.
-* **Opening Book**: Includes a lightweight `opening.py` module to handle initial theory moves.
-* **Interactive CLI**: A simple command-line interface for human-vs-engine or engine-vs-engine matchups.
-
+- 64-square mailbox board representation
+- FEN loading and board printing
+- legal move generation
+- castling, en passant, and promotions
+- make/undo move stack
+- Zobrist hashing
+- transposition table
+- negamax alpha-beta search
+- quiescence search
+- killer moves
+- history heuristic move ordering
+- basic CLI play mode
+- basic UCI mode
+- perft validation
+- optional NNUE inference path
+- Chess.com PGN download tools
+- PGN-to-FEN extraction
+- Stockfish labeling tools for NNUE training data
 
+## Layout
 
-## 📦 Installation & Setup
+```text
+.
++-- c_engine/
+|   +-- src/                 C engine source
+|   +-- tools/               training/data/helper scripts
+|   +-- data/fixtures/       tiny local test fixtures
+|   +-- build.ps1            local build script
+|   +-- verify.ps1           perft/search verification
+|   +-- README.md            C engine details
++-- LICENSE
++-- README.md
+```
 
-Prerequisites
-    Python 3.8
+## Build
 
-    NumPy: pip install numpy
+From PowerShell:
 
-    Cython(if the existing cython file does not work): Required to compile the .pyx files for performance.
+```powershell
+cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
 
-    You MUST run the compilation command python setup.py build_ext --inplace before starting the engine for the first time.
+The build script tries MSVC, `gcc`, `clang`, and the local MSYS2 GCC path. The
+compiled executable is:
 
-    Please make sure that you have the environment for C++ compilation or cython compilaation environment before using setup.py
+```text
+c_engine\xutrix.exe
+```
 
-## 🎮 How to Play
+## Verify
 
-Run the main script to start the interface:
+Run the engine regression checks:
 
-python engine.py
+```powershell
+cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
+powershell -ExecutionPolicy Bypass -File .\verify.ps1
+```
 
-Select Mode: Choose whether the engine plays as White, Black, Both, or None.
-Input Moves: Use standard algebraic notation (start square to end square), for example:
-e2 e4 or g1 f3
+Current verification covers:
 
-Quit: Type q at any time to exit the game.
-Note: This version is a prototype. It currently does not strictly enforce move legality for human input—it is designed for users who follow standard chess rules.
+- start position perft depths 1-4
+- Kiwipete perft depths 1-3
+- a search smoke test
 
-## 🔬 Technical Highlights
+## Run
 
-### 1. Hybrid Search Architecture
-Xustrix employs a sophisticated search strategy to navigate the vast game tree of chess:
-* **Minimax with Alpha-Beta Pruning**: The core decision-making algorithm, optimized to discard branches that cannot possibly influence the final decision.
-* **Beam Search (Root Heuristic)**: To manage search complexity at the root, the engine utilizes a beam search approach, focusing only on the top 15–25 most promising moves based on initial evaluations.
-* **Quiescence Search**: To combat the "horizon effect," the engine performs an additional search on capture sequences beyond the fixed depth. This ensures the engine doesn't make a move that looks good at depth $N$ but leads to an immediate material loss at $N+1$.
+```powershell
+cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
 
-### 2. Cython-Accelerated Core
-Unlike standard Python engines, Xustrix offloads its most computationally expensive tasks to C-extension modules:
-* **Move Generation**: Logic for pawn, knight, and sliding piece moves is handled in `movegen.pyx`.
-* **Square Attack Logic**: The `isSquareAttacked.pyx` module allows for rapid checks of king safety and board control.
-* **Performance**: By compiling these critical paths into machine code via Cython, the engine achieves a significant increase in Nodes Per Second (NPS).
+.\xutrix.exe perft 4
+.\xutrix.exe best 8
+.\xutrix.exe play 6
+.\xutrix.exe eval
+.\xutrix.exe uci
+```
 
-### 3. Memory & Efficiency
-* **Transposition Tables (TT)**: Uses **Zobrist Hashing** to store previously evaluated positions. If the engine encounters the same position via a different move order, it retrieves the result from memory instead of re-calculating.
-* **Move Ordering**: Moves are sorted using **SEE (Static Exchange Evaluation)** and **MVV-LVA** (Most Valuable Victim - Least Valuable Attacker) to ensure the strongest moves are searched first, maximizing Alpha-Beta pruning efficiency.
+Double-clicking `xutrix.exe` opens a small interactive menu instead of closing
+immediately.
 
-### 4. Evaluation Phase
-The engine calculates a score based on material and position. By utilizing the **PeSTO evaluation method**, the engine transitions its behavior smoothly from aggressive middle-game positioning to optimized end-game king activity.
+## NNUE Direction
 
+The engine currently supports loading an NNUE-style binary weight file through
+the `XUTRIX_NNUE` environment variable. If no NNUE file is configured, Xutrix
+falls back to the classical evaluator.
 
-## 🎓 About the Author
+Smoke-test the NNUE loader:
 
-Created by XiangCheng Xu (StDoses72), a Statistics & Machine Learning students， in the first term as freshman. This project serves as a practical exploration of search complexity, heuristic evaluation, and Python-C interoperability.
+```powershell
+cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
+python .\tools\write_smoke_nnue.py .\weights\smoke.nnue
+$env:XUTRIX_NNUE = "$PWD\weights\smoke.nnue"
+.\xutrix.exe eval
+```
 
+The smoke network is only for testing the loader. It is not trained.
 
+## Training Data
 
+The current data pipeline is:
 
+```text
+Chess.com PGN
+  -> extracted FEN positions
+  -> Stockfish centipawn labels
+  -> clean JSONL for PyTorch
+```
 
+Install Python dependencies:
 
+```powershell
+cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
+python -m pip install -r .\tools\requirements-training.txt
+```
 
+Download public Chess.com PGN:
 
+```powershell
+python .\tools\download_chesscom_pgn.py `
+  --username Hikaru `
+  --from 2025-01 `
+  --to 2025-12 `
+  --out .\data\raw\hikaru_2025.pgn
+```
+
+Extract positions:
+
+```powershell
+python .\tools\extract_positions.py `
+  --pgn .\data\raw\hikaru_2025.pgn `
+  --out .\data\positions\hikaru_2025_positions.jsonl `
+  --skip-ply 8 `
+  --sample-every 4 `
+  --max-per-game 32
+```
+
+Label with Stockfish:
+
+```powershell
+python .\tools\label_with_stockfish.py `
+  --positions .\data\positions\hikaru_2025_positions.jsonl `
+  --out .\data\labeled\hikaru_2025_labeled.jsonl `
+  --depth 8 `
+  --threads 4 `
+  --hash-mb 512
+```
+
+The labeled output is intentionally simple:
+
+```json
+{"fen":"...","score":37}
+```
+
+## Current Starter Dataset
+
+A first starter dataset has been generated locally:
+
+```text
+c_engine\data\labeled\hikaru_2025_labeled_d8_5k.jsonl
+```
+
+It contains 4,976 clean `fen + score` records labeled by Stockfish 18 at depth
+8. Data files are ignored by git so large/generated training artifacts do not
+pollute the repository.
+
+## Legacy Python Backup
+
+The previous Python/Cython version has been moved to:
+
+```text
+D:\doses72Proj\Xutrix-ChessEngine-python-backup-20260516
+```
+
+That backup includes the original `engine.py`, Cython files, PeSTO tables,
+profile data, and old README.

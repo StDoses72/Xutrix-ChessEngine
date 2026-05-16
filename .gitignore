@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+c_engine/xutrix.exe
+c_engine/*.o
+c_engine/*.obj
+c_engine/build/
+c_engine/weights/*.nnue
+c_engine/data/**/*.jsonl
+c_engine/data/raw/
+c_engine/data/positions/
+c_engine/data/labeled/
+c_engine/tools/stockfish/
