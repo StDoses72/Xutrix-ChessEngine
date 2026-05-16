@@ -16,6 +16,8 @@ static void print_usage(void) {
     printf("  xutrix divide <depth> [fen]\n");
     printf("  xutrix moves [fen]\n");
     printf("  xutrix best <depth> [fen]\n");
+    printf("  xutrix best-direct <depth> [fen]\n");
+    printf("  xutrix bench-line <depth> <plies> <direct|iterative> [fen]\n");
     printf("  xutrix eval [fen]\n");
     printf("  xutrix play [depth] [fen]\n");
     printf("  xutrix uci\n\n");
@@ -36,6 +38,38 @@ static void trim_in_place(char *buffer) {
     *end = '\0';
     if (start != buffer) {
         memmove(buffer, start, strlen(start) + 1);
+    }
+}
+
+static int score_to_white_perspective(const Board *board, int side_score) {
+    return board->side_to_move == WHITE ? side_score : -side_score;
+}
+
+static int is_mate_score(int score) {
+    int abs_score = score < 0 ? -score : score;
+    return abs_score >= MATE_SCORE - MAX_PLY;
+}
+
+static int mate_moves_from_score(int score) {
+    int abs_score = score < 0 ? -score : score;
+    int plies = MATE_SCORE - abs_score;
+    if (plies < 0) {
+        plies = 0;
+    }
+    return (plies + 1) / 2;
+}
+
+static void print_search_score_pair(const Board *board, int side_score) {
+    int white_score = score_to_white_perspective(board, side_score);
+
+    if (is_mate_score(side_score)) {
+        int side_mate = mate_moves_from_score(side_score);
+        int white_mate = mate_moves_from_score(white_score);
+        printf("score side mate %s%d\n", side_score >= 0 ? "" : "-", side_mate);
+        printf("score white mate %s%d\n", white_score >= 0 ? "" : "-", white_mate);
+    } else {
+        printf("score side cp %d\n", side_score);
+        printf("score white cp %d\n", white_score);
     }
 }
 
@@ -76,7 +110,7 @@ static void command_perft(int argc, char **argv) {
     }
 }
 
-static void command_best(int argc, char **argv) {
+static void command_best(int argc, char **argv, int iterative) {
     int depth = argc >= 3 ? atoi(argv[2]) : 4;
     char fen[512];
     Board board;
@@ -85,15 +119,34 @@ static void command_best(int argc, char **argv) {
         return;
     }
 
+    MoveList root_moves;
+    generate_legal_moves(&board, &root_moves);
+    if (root_moves.count == 0) {
+        printf("bestmove 0000\n");
+        if (in_check(&board, board.side_to_move)) {
+            printf("terminal checkmate\n");
+            printf("score side checkmated\n");
+            printf("score white %s 0\n", board.side_to_move == BLACK ? "mate" : "mated");
+        } else {
+            printf("terminal stalemate\n");
+            printf("score side cp 0\n");
+            printf("score white cp 0\n");
+        }
+        printf("nodes 0\n");
+        printf("time 0.000 sec\n");
+        return;
+    }
+
     clock_t start = clock();
-    SearchResult result = search_best_move(&board, depth);
+    SearchResult result = iterative ? search_iterative(&board, depth) : search_best_move(&board, depth);
     double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
     char move_text[6] = "0000";
     if (result.best_move.from < 64) {
         move_to_uci(result.best_move, move_text);
     }
     printf("bestmove %s\n", move_text);
-    printf("score cp %d\n", result.score);
+    printf("search %s\n", iterative ? "iterative" : "direct");
+    print_search_score_pair(&board, result.score);
     printf("nodes %" PRIu64 "\n", result.nodes);
     printf("time %.3f sec\n", seconds);
 }
@@ -114,6 +167,79 @@ static void command_eval(int argc, char **argv) {
         printf("nnue not loaded; set XUTRIX_NNUE to a weight file to enable it\n");
         printf("active evaluator classic\n");
     }
+}
+
+static void command_bench_line(int argc, char **argv) {
+    int depth = argc >= 3 ? atoi(argv[2]) : 6;
+    int plies = argc >= 4 ? atoi(argv[3]) : 3;
+    int iterative = 1;
+    int fen_start = 5;
+
+    if (argc >= 5) {
+        if (strcmp(argv[4], "direct") == 0) {
+            iterative = 0;
+        } else if (strcmp(argv[4], "iterative") == 0) {
+            iterative = 1;
+        } else {
+            fen_start = 4;
+        }
+    } else {
+        fen_start = 4;
+    }
+
+    if (depth < 1) {
+        depth = 1;
+    }
+    if (plies < 1) {
+        plies = 1;
+    }
+
+    char fen[512];
+    Board board;
+    if (!board_from_fen(&board, fen_from_args(argc, argv, fen_start, fen, sizeof(fen)))) {
+        fprintf(stderr, "Invalid FEN.\n");
+        return;
+    }
+
+    clock_t total_start = clock();
+    uint64_t total_nodes = 0;
+
+    printf("bench-line depth=%d plies=%d search=%s\n", depth, plies, iterative ? "iterative" : "direct");
+    for (int ply = 1; ply <= plies; ++ply) {
+        MoveList legal;
+        generate_legal_moves(&board, &legal);
+        if (legal.count == 0) {
+            printf("ply %d terminal %s\n", ply, in_check(&board, board.side_to_move) ? "checkmate" : "stalemate");
+            break;
+        }
+
+        clock_t start = clock();
+        SearchResult result = iterative ? search_iterative(&board, depth) : search_best_move(&board, depth);
+        double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
+        total_nodes += result.nodes;
+
+        char move_text[6] = "0000";
+        if (result.best_move.from < 64) {
+            move_to_uci(result.best_move, move_text);
+        }
+
+        printf("ply %d side=%s move=%s score_side=%d score_white=%d nodes=%" PRIu64 " time=%.3f\n",
+               ply,
+               board.side_to_move == WHITE ? "white" : "black",
+               move_text,
+               result.score,
+               score_to_white_perspective(&board, result.score),
+               result.nodes,
+               seconds);
+
+        if (result.best_move.from >= 64 || !make_move(&board, result.best_move)) {
+            break;
+        }
+    }
+
+    double total_seconds = (double)(clock() - total_start) / CLOCKS_PER_SEC;
+    printf("total_nodes=%" PRIu64 "\n", total_nodes);
+    printf("total_time=%.3f sec\n", total_seconds);
 }
 
 static void command_moves(int argc, char **argv) {
@@ -195,14 +321,18 @@ static void command_play(int argc, char **argv) {
             }
             make_move(&board, move);
         } else {
-            SearchResult result = search_best_move(&board, depth);
+            SearchResult result = search_iterative(&board, depth);
             if (result.best_move.from >= 64) {
                 printf("No engine move.\n");
                 break;
             }
             char move_text[6];
             move_to_uci(result.best_move, move_text);
-            printf("engine: %s  score=%d  nodes=%" PRIu64 "\n", move_text, result.score, result.nodes);
+            printf("engine: %s  side_score=%d  white_score=%d  nodes=%" PRIu64 "\n",
+                   move_text,
+                   result.score,
+                   score_to_white_perspective(&board, result.score),
+                   result.nodes);
             make_move(&board, result.best_move);
         }
     }
@@ -265,7 +395,7 @@ static void interactive_menu(void) {
             command_play(3, args);
         } else if (strcmp(input, "2") == 0) {
             char *args[] = {"xutrix", "best", "6"};
-            command_best(3, args);
+            command_best(3, args, 1);
         } else if (strcmp(input, "3") == 0) {
             char *args[] = {"xutrix", "perft", "4"};
             command_perft(3, args);
@@ -373,12 +503,20 @@ static void uci_loop(void) {
                     depth = 1;
                 }
             }
-            SearchResult result = search_best_move(&board, depth);
+            SearchResult result = search_iterative(&board, depth);
             char best[6] = "0000";
             if (result.best_move.from < 64) {
                 move_to_uci(result.best_move, best);
             }
-            printf("info depth %d score cp %d nodes %" PRIu64 "\n", depth, result.score, result.nodes);
+            if (is_mate_score(result.score)) {
+                printf("info depth %d score mate %s%d nodes %" PRIu64 "\n",
+                       depth,
+                       result.score >= 0 ? "" : "-",
+                       mate_moves_from_score(result.score),
+                       result.nodes);
+            } else {
+                printf("info depth %d score cp %d nodes %" PRIu64 "\n", depth, result.score, result.nodes);
+            }
             printf("bestmove %s\n", best);
         } else if (strcmp(line, "d") == 0) {
             board_print(&board);
@@ -407,7 +545,11 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[1], "moves") == 0) {
         command_moves(argc, argv);
     } else if (strcmp(argv[1], "best") == 0) {
-        command_best(argc, argv);
+        command_best(argc, argv, 1);
+    } else if (strcmp(argv[1], "best-direct") == 0) {
+        command_best(argc, argv, 0);
+    } else if (strcmp(argv[1], "bench-line") == 0) {
+        command_bench_line(argc, argv);
     } else if (strcmp(argv[1], "eval") == 0) {
         command_eval(argc, argv);
     } else if (strcmp(argv[1], "play") == 0) {

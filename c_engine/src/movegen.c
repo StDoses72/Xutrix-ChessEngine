@@ -539,3 +539,142 @@ void move_to_uci(Move move, char out[6]) {
         out[5] = '\0';
     }
 }
+
+static int see_piece_value(int piece) {
+    static const int values[7] = {0, 100, 320, 330, 500, 900, 20000};
+    return values[piece_type(piece)];
+}
+
+static int clear_line_to_target(const Board *board, int from, int target, int df, int dr) {
+    int file = file_of(from) + df;
+    int rank = rank_of(from) + dr;
+    while (on_board(file, rank)) {
+        int sq = rank * 8 + file;
+        if (sq == target) {
+            return 1;
+        }
+        if (board->squares[sq] != EMPTY) {
+            return 0;
+        }
+        file += df;
+        rank += dr;
+    }
+    return 0;
+}
+
+static int piece_attacks_square(const Board *board, int from, int target, int piece) {
+    int from_file = file_of(from);
+    int from_rank = rank_of(from);
+    int target_file = file_of(target);
+    int target_rank = rank_of(target);
+    int df = target_file - from_file;
+    int dr = target_rank - from_rank;
+
+    switch (piece_type(piece)) {
+        case PAWN:
+            if (piece_color(piece) == WHITE) {
+                return dr == 1 && (df == 1 || df == -1);
+            }
+            return dr == -1 && (df == 1 || df == -1);
+        case KNIGHT:
+            return (abs(df) == 1 && abs(dr) == 2) || (abs(df) == 2 && abs(dr) == 1);
+        case BISHOP:
+            if (abs(df) != abs(dr) || df == 0) {
+                return 0;
+            }
+            return clear_line_to_target(board, from, target, df > 0 ? 1 : -1, dr > 0 ? 1 : -1);
+        case ROOK:
+            if ((df != 0 && dr != 0) || (df == 0 && dr == 0)) {
+                return 0;
+            }
+            return clear_line_to_target(board, from, target, df == 0 ? 0 : (df > 0 ? 1 : -1),
+                                        dr == 0 ? 0 : (dr > 0 ? 1 : -1));
+        case QUEEN:
+            if (abs(df) == abs(dr) && df != 0) {
+                return clear_line_to_target(board, from, target, df > 0 ? 1 : -1, dr > 0 ? 1 : -1);
+            }
+            if ((df == 0) != (dr == 0)) {
+                return clear_line_to_target(board, from, target, df == 0 ? 0 : (df > 0 ? 1 : -1),
+                                            dr == 0 ? 0 : (dr > 0 ? 1 : -1));
+            }
+            return 0;
+        case KING:
+            return abs(df) <= 1 && abs(dr) <= 1 && (df != 0 || dr != 0);
+        default:
+            return 0;
+    }
+}
+
+static int lowest_attacker(const Board *board, int target, int side) {
+    int best_sq = -1;
+    int best_value = 30000;
+
+    for (int sq = 0; sq < 64; ++sq) {
+        int piece = board->squares[sq];
+        if (piece == EMPTY || piece_color(piece) != side) {
+            continue;
+        }
+
+        if (piece_attacks_square(board, sq, target, piece)) {
+            int value = see_piece_value(piece);
+            if (value < best_value) {
+                best_value = value;
+                best_sq = sq;
+            }
+        }
+    }
+
+    return best_sq;
+}
+
+int see_move(const Board *board, Move move) {
+    if (!(move.flags & MOVE_CAPTURE)) {
+        return 0;
+    }
+
+    Board temp = *board;
+    int side = piece_color(temp.squares[move.from]);
+    int target = move.to;
+    int captured_square = target;
+
+    if (move.flags & MOVE_EN_PASSANT) {
+        captured_square = side == WHITE ? target - 8 : target + 8;
+    }
+
+    int captured_piece = temp.squares[captured_square];
+    int attacker = temp.squares[move.from];
+    int gain[32];
+    int depth = 0;
+
+    gain[depth] = see_piece_value(captured_piece);
+
+    temp.squares[captured_square] = EMPTY;
+    temp.squares[target] = attacker;
+    temp.squares[move.from] = EMPTY;
+
+    side = opposite_side(side);
+    while (depth + 1 < 32) {
+        int from = lowest_attacker(&temp, target, side);
+        if (from < 0) {
+            break;
+        }
+
+        ++depth;
+        int moving_piece = temp.squares[from];
+        gain[depth] = see_piece_value(temp.squares[target]) - gain[depth - 1];
+
+        temp.squares[target] = moving_piece;
+        temp.squares[from] = EMPTY;
+        side = opposite_side(side);
+    }
+
+    while (depth > 0) {
+        --depth;
+        int next = -gain[depth + 1];
+        if (next < gain[depth]) {
+            gain[depth] = next;
+        }
+    }
+
+    return gain[0];
+}

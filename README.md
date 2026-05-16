@@ -82,6 +82,7 @@ cd D:\doses72Proj\Xutrix-ChessEngine\c_engine
 
 .\xutrix.exe perft 4
 .\xutrix.exe best 8
+.\xutrix.exe best-direct 8
 .\xutrix.exe play 6
 .\xutrix.exe eval
 .\xutrix.exe uci

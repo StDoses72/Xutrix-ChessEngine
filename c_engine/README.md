@@ -27,6 +27,7 @@ cmake --build build --config Release
 ```powershell
 .\xutrix.exe perft 3
 .\xutrix.exe best 4
+.\xutrix.exe best-direct 4
 .\xutrix.exe play 4
 .\xutrix.exe uci
 .\xutrix.exe eval

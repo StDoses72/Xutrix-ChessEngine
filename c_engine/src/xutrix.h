@@ -111,6 +111,7 @@ int make_move(Board *board, Move move);
 void undo_move(Board *board);
 int parse_uci_move(Board *board, const char *text, Move *move);
 void move_to_uci(Move move, char out[6]);
+int see_move(const Board *board, Move move);
 
 int evaluate_board(const Board *board);
 int evaluate_classic_board(const Board *board);
@@ -118,5 +119,6 @@ int evaluate_classic_board(const Board *board);
 void tt_clear(void);
 uint64_t perft(Board *board, int depth);
 SearchResult search_best_move(Board *board, int depth);
+SearchResult search_iterative(Board *board, int max_depth);
 
 #endif
