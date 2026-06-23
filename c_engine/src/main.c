@@ -19,7 +19,7 @@ static void print_usage(void) {
     printf("  xutrix best-direct <depth> [fen]\n");
     printf("  xutrix bench-line <depth> <plies> <direct|iterative> [fen]\n");
     printf("  xutrix eval [fen]\n");
-    printf("  xutrix play [depth] [fen]\n");
+    printf("  xutrix play [depth] [white|black] [fen]\n");
     printf("  xutrix uci\n\n");
     printf("Examples:\n");
     printf("  xutrix perft 3\n");
@@ -71,6 +71,25 @@ static void print_search_score_pair(const Board *board, int side_score) {
         printf("score side cp %d\n", side_score);
         printf("score white cp %d\n", white_score);
     }
+}
+
+static int parse_side_name(const char *text, int *side) {
+    if (!text) {
+        return 0;
+    }
+    if (strcmp(text, "white") == 0 || strcmp(text, "w") == 0) {
+        *side = WHITE;
+        return 1;
+    }
+    if (strcmp(text, "black") == 0 || strcmp(text, "b") == 0) {
+        *side = BLACK;
+        return 1;
+    }
+    return 0;
+}
+
+static const char *side_name(int side) {
+    return side == WHITE ? "white" : "black";
 }
 
 static void append_token(char *dst, size_t dst_size, const char *token) {
@@ -286,14 +305,21 @@ static void command_divide(int argc, char **argv) {
 
 static void command_play(int argc, char **argv) {
     int depth = argc >= 3 ? atoi(argv[2]) : 4;
+    int human_side = WHITE;
+    int fen_start = 3;
+
+    if (argc >= 4 && parse_side_name(argv[3], &human_side)) {
+        fen_start = 4;
+    }
+
     char fen[512];
     Board board;
-    if (!board_from_fen(&board, fen_from_args(argc, argv, 3, fen, sizeof(fen)))) {
+    if (!board_from_fen(&board, fen_from_args(argc, argv, fen_start, fen, sizeof(fen)))) {
         fprintf(stderr, "Invalid FEN.\n");
         return;
     }
 
-    printf("Human plays white. Enter UCI moves like e2e4, or q to quit.\n");
+    printf("Human plays %s. Enter UCI moves like e2e4, or q to quit.\n", side_name(human_side));
     char input[128];
     while (1) {
         board_print(&board);
@@ -304,7 +330,7 @@ static void command_play(int argc, char **argv) {
             break;
         }
 
-        if (board.side_to_move == WHITE) {
+        if (board.side_to_move == human_side) {
             printf("your move> ");
             if (!fgets(input, sizeof(input), stdin)) {
                 break;
@@ -380,9 +406,30 @@ static int read_depth_or_default(int default_depth) {
     return depth;
 }
 
+static int read_side_or_default(int default_side) {
+    char input[32];
+    printf("Your side [%s]> ", side_name(default_side));
+    if (!fgets(input, sizeof(input), stdin)) {
+        return default_side;
+    }
+    input[strcspn(input, "\r\n")] = '\0';
+    trim_in_place(input);
+    if (input[0] == '\0') {
+        return default_side;
+    }
+
+    int side = default_side;
+    if (!parse_side_name(input, &side)) {
+        printf("Using default side %s.\n", side_name(default_side));
+        return default_side;
+    }
+    return side;
+}
+
 static void interactive_menu(void) {
     char input[32];
     char depth_text[16];
+    char side_text[8];
 
     printf("Xutrix C Engine\n");
     printf("Tip: command-line usage still works, for example: xutrix.exe best 8\n");
@@ -390,9 +437,11 @@ static void interactive_menu(void) {
     while (read_menu_choice(input, sizeof(input))) {
         if (strcmp(input, "1") == 0) {
             int depth = read_depth_or_default(4);
+            int side = read_side_or_default(WHITE);
             snprintf(depth_text, sizeof(depth_text), "%d", depth);
-            char *args[] = {"xutrix", "play", depth_text};
-            command_play(3, args);
+            snprintf(side_text, sizeof(side_text), "%s", side_name(side));
+            char *args[] = {"xutrix", "play", depth_text, side_text};
+            command_play(4, args);
         } else if (strcmp(input, "2") == 0) {
             char *args[] = {"xutrix", "best", "6"};
             command_best(3, args, 1);
