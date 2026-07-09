@@ -26,6 +26,8 @@
 #define HISTORY_MAX 70000
 #define NULL_MOVE_MIN_DEPTH 3
 #define NULL_MOVE_REDUCTION 2
+#define LMR_MIN_DEPTH 3
+#define LMR_MIN_MOVE_INDEX 3
 
 typedef struct {
     uint64_t key;
@@ -59,6 +61,7 @@ typedef struct {
     int worker_id;
     int lock_tt;
     int stopped;
+    int completed_depth;
 #ifdef _WIN32
     volatile LONG *stop;
 #else
@@ -324,6 +327,33 @@ static int is_near_mate_score(int score) {
 
 static int is_mate_window(int alpha, int beta) {
     return is_near_mate_score(alpha) || is_near_mate_score(beta);
+}
+
+static int lmr_reduction(int depth, int move_index, Move move, int checked, int gives_check,
+                         int alpha, int beta) {
+    if (depth < LMR_MIN_DEPTH || move_index < LMR_MIN_MOVE_INDEX || checked || gives_check ||
+        is_tactical_move(move) || (move.flags & MOVE_CASTLE) || is_mate_window(alpha, beta)) {
+        return 0;
+    }
+
+    if (move.score >= 80000) {
+        return 0;
+    }
+
+    int reduction = 1;
+    if (depth >= 6 && move_index >= 6) {
+        ++reduction;
+    }
+    if (depth >= 10 && move_index >= 12) {
+        ++reduction;
+    }
+    if (move.score > 0 && reduction > 1) {
+        --reduction;
+    }
+    if (reduction >= depth) {
+        reduction = depth - 1;
+    }
+    return reduction;
 }
 
 static int has_non_pawn_material(const Board *board, int side) {
@@ -768,9 +798,19 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         if (i == 0) {
             score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1, move);
         } else {
-            score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, ply + 1, move);
+            int child_depth = depth - 1;
+            int gives_check = in_check(board, board->side_to_move);
+            int reduction = lmr_reduction(depth, i, move, checked, gives_check, alpha, beta);
+            if (reduction > 0 && child_depth - reduction > 0) {
+                score = -negamax(ctx, board, child_depth - reduction, -alpha - 1, -alpha, ply + 1, move);
+                if (!ctx->stopped && score > alpha) {
+                    score = -negamax(ctx, board, child_depth, -alpha - 1, -alpha, ply + 1, move);
+                }
+            } else {
+                score = -negamax(ctx, board, child_depth, -alpha - 1, -alpha, ply + 1, move);
+            }
             if (score > alpha && score < beta) {
-                score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1, move);
+                score = -negamax(ctx, board, child_depth, -beta, -alpha, ply + 1, move);
             }
         }
         undo_move(board);
@@ -1008,6 +1048,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
     final_result.best_move = invalid_move();
     final_result.score = 0;
     final_result.nodes = 0;
+    ctx->completed_depth = 0;
 
     if (max_depth < 1) {
         max_depth = 1;
@@ -1061,6 +1102,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
         final_result = current;
         final_result.nodes = total_nodes;
         previous_score = current.score;
+        ctx->completed_depth = depth;
         if (current.best_move.from >= 64) {
             break;
         }
@@ -1088,6 +1130,7 @@ typedef struct {
     SearchContext ctx;
     SearchResult result;
     int completed;
+    int completed_depth;
 } LazySmpWorker;
 
 static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
@@ -1098,11 +1141,39 @@ static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
     worker->ctx.lock_tt = 1;
     worker->ctx.stop = worker->stop;
     worker->result = search_iterative_with_context(&worker->ctx, &board, worker->max_depth);
-    if (!worker->ctx.stopped && worker->result.best_move.from < 64) {
-        worker->completed = 1;
-        xatomic_store_stop(worker->stop);
-    }
+    worker->completed_depth = worker->ctx.completed_depth;
+    worker->completed = !worker->ctx.stopped && worker->completed_depth >= worker->max_depth &&
+                        worker->result.best_move.from < 64;
     return XTHREAD_RETURN;
+}
+
+static int lazy_smp_worker_has_result(const LazySmpWorker *worker) {
+    return worker->completed_depth > 0 && worker->result.best_move.from < 64;
+}
+
+static int lazy_smp_worker_is_better(const LazySmpWorker *candidate, const LazySmpWorker *current) {
+    if (!lazy_smp_worker_has_result(candidate)) {
+        return 0;
+    }
+    if (!current || !lazy_smp_worker_has_result(current)) {
+        return 1;
+    }
+    if (candidate->completed_depth != current->completed_depth) {
+        return candidate->completed_depth > current->completed_depth;
+    }
+    if (candidate->worker_id == 0 && current->worker_id != 0) {
+        return 1;
+    }
+    if (candidate->worker_id != 0 && current->worker_id == 0) {
+        return 0;
+    }
+    if (candidate->completed != current->completed) {
+        return candidate->completed;
+    }
+    if (candidate->result.nodes != current->result.nodes) {
+        return candidate->result.nodes > current->result.nodes;
+    }
+    return candidate->result.score > current->result.score;
 }
 
 SearchResult search_iterative_parallel(Board *board, int max_depth, int threads) {
@@ -1154,24 +1225,29 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
     best.best_move = invalid_move();
     best.score = -INF_SCORE;
     best.nodes = 0;
+    int best_worker = -1;
+    uint64_t total_nodes = 0;
 
     for (int i = 0; i < threads; ++i) {
         xthread_join(handles[i]);
-        best.nodes += workers[i].result.nodes;
-        if (workers[i].completed && workers[i].result.best_move.from < 64 &&
-            (best.best_move.from >= 64 || workers[i].result.score > best.score)) {
-            best.best_move = workers[i].result.best_move;
-            best.score = workers[i].result.score;
+        total_nodes += workers[i].result.nodes;
+        LazySmpWorker *current = best_worker >= 0 ? &workers[best_worker] : NULL;
+        if (lazy_smp_worker_is_better(&workers[i], current)) {
+            best_worker = i;
         }
+    }
+
+    if (best_worker >= 0) {
+        best = workers[best_worker].result;
+        best.nodes = total_nodes;
+        free(handles);
+        free(workers);
+        return best;
     }
 
     free(handles);
     free(workers);
-
-    if (best.best_move.from >= 64) {
-        return search_iterative(board, max_depth);
-    }
-    return best;
+    return search_iterative(board, max_depth);
 }
 
 SearchResult search_best_move_parallel(Board *board, int depth, int threads) {
