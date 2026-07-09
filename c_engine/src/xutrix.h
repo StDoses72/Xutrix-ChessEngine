@@ -118,7 +118,10 @@ int evaluate_classic_board(const Board *board);
 
 void tt_clear(void);
 uint64_t perft(Board *board, int depth);
+uint64_t perft_parallel(Board *board, int depth, int threads);
 SearchResult search_best_move(Board *board, int depth);
+SearchResult search_best_move_parallel(Board *board, int depth, int threads);
 SearchResult search_iterative(Board *board, int max_depth);
+SearchResult search_iterative_parallel(Board *board, int max_depth, int threads);
 
 #endif

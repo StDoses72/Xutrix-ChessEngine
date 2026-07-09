@@ -25,8 +25,20 @@ foreach ($case in $cases) {
     Write-Host "ok depth $($case.Depth): $($case.Expected)"
 }
 
+$parallel = & "$PSScriptRoot\xutrix.exe" perft-par 4 2
+if (($parallel | Select-Object -First 1) -notmatch "= 197281$") {
+    Write-Error "Parallel perft failed for depth 4. Expected 197281, got: $($parallel | Select-Object -First 1)"
+}
+Write-Host "ok parallel perft depth 4: 197281"
+
 $best = & "$PSScriptRoot\xutrix.exe" best 3
 if (($best | Select-Object -First 1) -notmatch "^bestmove [a-h][1-8][a-h][1-8][qrbn]?$") {
     Write-Error "Search smoke test failed: $($best | Select-Object -First 1)"
 }
 Write-Host "ok search smoke"
+
+$bestParallel = & "$PSScriptRoot\xutrix.exe" best-par 3 2
+if (($bestParallel | Select-Object -First 1) -notmatch "^bestmove [a-h][1-8][a-h][1-8][qrbn]?$") {
+    Write-Error "Parallel search smoke test failed: $($bestParallel | Select-Object -First 1)"
+}
+Write-Host "ok parallel search smoke"

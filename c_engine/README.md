@@ -26,7 +26,9 @@ cmake --build build --config Release
 
 ```powershell
 .\xutrix.exe perft 3
+.\xutrix.exe perft-par 5 4
 .\xutrix.exe best 4
+.\xutrix.exe best-par 6 4
 .\xutrix.exe best-direct 4
 .\xutrix.exe play 4
 .\xutrix.exe uci
@@ -52,6 +54,7 @@ Commands also accept a FEN after the depth:
 - Make/undo move stack.
 - Zobrist hash and transposition table.
 - Negamax alpha-beta search with quiescence.
+- Root-node parallel perft and root-node parallel iterative search.
 - Material + piece-square evaluation.
 - Optional NNUE inference path loaded from `XUTRIX_NNUE`.
 - Perft and basic UCI support for validation.
