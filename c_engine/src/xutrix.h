@@ -116,6 +116,7 @@ int is_square_attacked(const Board *board, int sq, int by_side);
 int in_check(const Board *board, int side);
 void generate_pseudo_moves(const Board *board, MoveList *list);
 void generate_legal_moves(Board *board, MoveList *list);
+void generate_legal_noisy_moves(Board *board, MoveList *list);
 int make_move(Board *board, Move move);
 void undo_move(Board *board);
 int parse_uci_move(Board *board, const char *text, Move *move);

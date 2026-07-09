@@ -224,10 +224,14 @@ static uint64_t queen_attacks_from(int sq, uint64_t occupied) {
     return bishop_attacks_from(sq, occupied) | rook_attacks_from(sq, occupied);
 }
 
-static void add_targets_from_mask(const Board *board, MoveList *list, int from, int piece, uint64_t targets) {
+static void add_targets_from_mask(const Board *board, MoveList *list, int from, int piece,
+                                  uint64_t targets, int noisy_only) {
     int side = piece_color(piece);
     uint64_t enemy = board->occupancy[opposite_side(side)];
     targets &= ~board->occupancy[side];
+    if (noisy_only) {
+        targets &= enemy;
+    }
     while (targets) {
         int to = pop_lsb(&targets);
         int flags = (enemy & square_mask(to)) ? MOVE_CAPTURE : 0;
@@ -264,7 +268,7 @@ int in_check(const Board *board, int side) {
     return 0;
 }
 
-static void generate_pawn_moves(const Board *board, MoveList *list, int sq, int piece) {
+static void generate_pawn_moves(const Board *board, MoveList *list, int sq, int piece, int noisy_only) {
     int side = piece_color(piece);
     int file = file_of(sq);
     int rank = rank_of(sq);
@@ -276,7 +280,7 @@ static void generate_pawn_moves(const Board *board, MoveList *list, int sq, int 
         if (rank < 7 && !(occupied & square_mask(one))) {
             if (rank == 6) {
                 add_promotion_moves(list, sq, one, 0);
-            } else {
+            } else if (!noisy_only) {
                 add_move(list, sq, one, 0, 0);
                 if (rank == 1 && !(occupied & square_mask(sq + 16))) {
                     add_move(list, sq, sq + 16, 0, MOVE_DOUBLE_PAWN);
@@ -308,7 +312,7 @@ static void generate_pawn_moves(const Board *board, MoveList *list, int sq, int 
         if (rank > 0 && !(occupied & square_mask(one))) {
             if (rank == 1) {
                 add_promotion_moves(list, sq, one, 0);
-            } else {
+            } else if (!noisy_only) {
                 add_move(list, sq, one, 0, 0);
                 if (rank == 6 && !(occupied & square_mask(sq - 16))) {
                     add_move(list, sq, sq - 16, 0, MOVE_DOUBLE_PAWN);
@@ -338,22 +342,26 @@ static void generate_pawn_moves(const Board *board, MoveList *list, int sq, int 
     }
 }
 
-static void generate_knight_moves(const Board *board, MoveList *list, int sq, int piece) {
-    add_targets_from_mask(board, list, sq, piece, knight_attacks_from(sq));
+static void generate_knight_moves(const Board *board, MoveList *list, int sq, int piece, int noisy_only) {
+    add_targets_from_mask(board, list, sq, piece, knight_attacks_from(sq), noisy_only);
 }
 
 static void generate_slider_moves(const Board *board, MoveList *list, int sq, int piece,
-                                  const int dirs[][2], int dir_count) {
+                                  const int dirs[][2], int dir_count, int noisy_only) {
     uint64_t targets = 0;
     for (int i = 0; i < dir_count; ++i) {
         targets |= ray_attacks_from(sq, dirs[i][0], dirs[i][1], board->occupied);
     }
-    add_targets_from_mask(board, list, sq, piece, targets);
+    add_targets_from_mask(board, list, sq, piece, targets, noisy_only);
 }
 
-static void generate_king_moves(const Board *board, MoveList *list, int sq, int piece) {
+static void generate_king_moves(const Board *board, MoveList *list, int sq, int piece, int noisy_only) {
     int side = piece_color(piece);
-    add_targets_from_mask(board, list, sq, piece, king_attacks_from(sq));
+    add_targets_from_mask(board, list, sq, piece, king_attacks_from(sq), noisy_only);
+
+    if (noisy_only) {
+        return;
+    }
 
     if (side == WHITE && sq == 4 && !in_check(board, WHITE)) {
         if ((board->castling & CASTLE_WHITE_KING) && (board->bitboards[WHITE][ROOK] & square_mask(7)) &&
@@ -380,7 +388,7 @@ static void generate_king_moves(const Board *board, MoveList *list, int sq, int 
     }
 }
 
-void generate_pseudo_moves(const Board *board, MoveList *list) {
+static void generate_pseudo_moves_impl(const Board *board, MoveList *list, int noisy_only) {
     movegen_init_attack_tables();
     list->count = 0;
     static const int bishop_dirs[4][2] = {
@@ -402,28 +410,36 @@ void generate_pseudo_moves(const Board *board, MoveList *list) {
             int sq = pop_lsb(&pieces);
             switch (type) {
             case PAWN:
-                generate_pawn_moves(board, list, sq, piece);
+                generate_pawn_moves(board, list, sq, piece, noisy_only);
                 break;
             case KNIGHT:
-                generate_knight_moves(board, list, sq, piece);
+                generate_knight_moves(board, list, sq, piece, noisy_only);
                 break;
             case BISHOP:
-                generate_slider_moves(board, list, sq, piece, bishop_dirs, 4);
+                generate_slider_moves(board, list, sq, piece, bishop_dirs, 4, noisy_only);
                 break;
             case ROOK:
-                generate_slider_moves(board, list, sq, piece, rook_dirs, 4);
+                generate_slider_moves(board, list, sq, piece, rook_dirs, 4, noisy_only);
                 break;
             case QUEEN:
-                generate_slider_moves(board, list, sq, piece, queen_dirs, 8);
+                generate_slider_moves(board, list, sq, piece, queen_dirs, 8, noisy_only);
                 break;
             case KING:
-                generate_king_moves(board, list, sq, piece);
+                generate_king_moves(board, list, sq, piece, noisy_only);
                 break;
             default:
                 break;
             }
         }
     }
+}
+
+void generate_pseudo_moves(const Board *board, MoveList *list) {
+    generate_pseudo_moves_impl(board, list, 0);
+}
+
+static void generate_pseudo_noisy_moves(const Board *board, MoveList *list) {
+    generate_pseudo_moves_impl(board, list, 1);
 }
 
 int make_move(Board *board, Move move) {
@@ -570,23 +586,33 @@ void undo_move(Board *board) {
     board->hash = undo->hash;
 }
 
-void generate_legal_moves(Board *board, MoveList *list) {
-    MoveList pseudo;
+static void filter_legal_moves(Board *board, const MoveList *pseudo, MoveList *list) {
     MoveList legal;
-    generate_pseudo_moves(board, &pseudo);
     legal.count = 0;
 
     int moving_side = board->side_to_move;
-    for (int i = 0; i < pseudo.count; ++i) {
-        if (!make_move(board, pseudo.moves[i])) {
+    for (int i = 0; i < pseudo->count; ++i) {
+        if (!make_move(board, pseudo->moves[i])) {
             continue;
         }
         if (!in_check(board, moving_side)) {
-            legal.moves[legal.count++] = pseudo.moves[i];
+            legal.moves[legal.count++] = pseudo->moves[i];
         }
         undo_move(board);
     }
     *list = legal;
+}
+
+void generate_legal_moves(Board *board, MoveList *list) {
+    MoveList pseudo;
+    generate_pseudo_moves(board, &pseudo);
+    filter_legal_moves(board, &pseudo, list);
+}
+
+void generate_legal_noisy_moves(Board *board, MoveList *list) {
+    MoveList pseudo;
+    generate_pseudo_noisy_moves(board, &pseudo);
+    filter_legal_moves(board, &pseudo, list);
 }
 
 static int same_move_text(Move move, const char *text) {

@@ -451,12 +451,12 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
 
     int checked = in_check(board, board->side_to_move);
     MoveList moves;
-    generate_legal_moves(board, &moves);
-    if (moves.count == 0) {
-        return checked ? -MATE_SCORE + board->ply : 0;
-    }
-
-    if (!checked) {
+    if (checked) {
+        generate_legal_moves(board, &moves);
+        if (moves.count == 0) {
+            return -MATE_SCORE + board->ply;
+        }
+    } else {
         int stand_pat = side_relative_eval(board);
         if (stand_pat >= beta) {
             return beta;
@@ -464,15 +464,13 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
         if (stand_pat > alpha) {
             alpha = stand_pat;
         }
+        generate_legal_noisy_moves(board, &moves);
     }
 
     score_moves(ctx, board, &moves, invalid_move(), board->ply);
 
     for (int i = 0; i < moves.count; ++i) {
         Move move = moves.moves[i];
-        if (!checked && !(move.flags & (MOVE_CAPTURE | MOVE_PROMOTION))) {
-            continue;
-        }
         if (!checked && (move.flags & MOVE_CAPTURE) && !(move.flags & MOVE_PROMOTION) && see_move(board, move) < 0) {
             continue;
         }
