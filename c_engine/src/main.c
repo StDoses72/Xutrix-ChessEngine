@@ -84,6 +84,8 @@ static void print_usage(void) {
     printf("Xutrix C Engine\n\n");
     printf("Usage:\n");
     printf("  xutrix perft <depth> [fen]\n");
+    printf("  xutrix perft-filter <depth> [fen]\n");
+    printf("  xutrix perft-compare <depth> [fen]\n");
     printf("  xutrix perft-par <depth> [threads] [fen]\n");
     printf("  xutrix divide <depth> [fen]\n");
     printf("  xutrix moves [fen]\n");
@@ -202,6 +204,48 @@ static void command_perft(int argc, char **argv) {
     if (seconds > 0.0) {
         printf("nps = %.0f\n", nodes / seconds);
     }
+}
+
+static void command_perft_filtered(int argc, char **argv) {
+    int depth = argc >= 3 ? atoi(argv[2]) : 1;
+    char fen[512];
+    Board board;
+    if (!board_from_fen(&board, fen_from_args(argc, argv, 3, fen, sizeof(fen)))) {
+        fprintf(stderr, "Invalid FEN.\n");
+        return;
+    }
+
+    clock_t start = clock();
+    uint64_t nodes = perft_filtered(&board, depth);
+    double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
+    printf("perft-filter(%d) = %" PRIu64 "\n", depth, nodes);
+    printf("time = %.3f sec\n", seconds);
+    if (seconds > 0.0) {
+        printf("nps = %.0f\n", nodes / seconds);
+    }
+}
+
+static void command_perft_compare(int argc, char **argv) {
+    int depth = argc >= 3 ? atoi(argv[2]) : 1;
+    char fen[512];
+    Board direct;
+    if (!board_from_fen(&direct, fen_from_args(argc, argv, 3, fen, sizeof(fen)))) {
+        fprintf(stderr, "Invalid FEN.\n");
+        return;
+    }
+    Board filtered = direct;
+
+    clock_t direct_start = clock();
+    uint64_t direct_nodes = perft(&direct, depth);
+    double direct_seconds = (double)(clock() - direct_start) / CLOCKS_PER_SEC;
+
+    clock_t filtered_start = clock();
+    uint64_t filtered_nodes = perft_filtered(&filtered, depth);
+    double filtered_seconds = (double)(clock() - filtered_start) / CLOCKS_PER_SEC;
+
+    printf("perft-direct(%d) = %" PRIu64 " time %.3f sec\n", depth, direct_nodes, direct_seconds);
+    printf("perft-filter(%d) = %" PRIu64 " time %.3f sec\n", depth, filtered_nodes, filtered_seconds);
+    printf("%s\n", direct_nodes == filtered_nodes ? "match" : "mismatch");
 }
 
 static void command_perft_parallel(int argc, char **argv) {
@@ -819,6 +863,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "perft") == 0) {
         command_perft(argc, argv);
+    } else if (strcmp(argv[1], "perft-filter") == 0) {
+        command_perft_filtered(argc, argv);
+    } else if (strcmp(argv[1], "perft-compare") == 0) {
+        command_perft_compare(argc, argv);
     } else if (strcmp(argv[1], "perft-par") == 0) {
         command_perft_parallel(argc, argv);
     } else if (strcmp(argv[1], "divide") == 0) {

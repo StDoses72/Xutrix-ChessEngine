@@ -606,6 +606,26 @@ uint64_t perft(Board *board, int depth) {
     return nodes;
 }
 
+uint64_t perft_filtered(Board *board, int depth) {
+    if (depth == 0) {
+        return 1;
+    }
+
+    MoveList moves;
+    generate_legal_moves_filtered(board, &moves);
+    if (depth == 1) {
+        return (uint64_t)moves.count;
+    }
+
+    uint64_t nodes = 0;
+    for (int i = 0; i < moves.count; ++i) {
+        make_move(board, moves.moves[i]);
+        nodes += perft_filtered(board, depth - 1);
+        undo_move(board);
+    }
+    return nodes;
+}
+
 typedef struct {
     const Board *board;
     const MoveList *moves;

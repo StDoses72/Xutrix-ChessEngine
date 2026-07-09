@@ -14,6 +14,7 @@
 static uint64_t knight_attack_table[BOARD_SQUARES];
 static uint64_t king_attack_table[BOARD_SQUARES];
 static uint64_t pawn_attack_table[2][BOARD_SQUARES];
+static uint64_t between_table[BOARD_SQUARES][BOARD_SQUARES];
 static int attack_tables_initialized = 0;
 
 static int file_of(int sq) {
@@ -52,6 +53,15 @@ static int pop_lsb(uint64_t *bb) {
     int sq = bit_scan_forward(*bb);
     *bb &= *bb - 1;
     return sq;
+}
+
+static int popcount64(uint64_t bb) {
+    int count = 0;
+    while (bb) {
+        bb &= bb - 1;
+        ++count;
+    }
+    return count;
 }
 
 static void bitboard_add_piece(Board *board, int piece, int sq, uint64_t *hash) {
@@ -164,6 +174,57 @@ static uint64_t build_pawn_attacks(int sq, int side) {
     return attacks;
 }
 
+static int step_toward(int from, int to, int *df, int *dr) {
+    int from_file = file_of(from);
+    int from_rank = rank_of(from);
+    int to_file = file_of(to);
+    int to_rank = rank_of(to);
+    int file_delta = to_file - from_file;
+    int rank_delta = to_rank - from_rank;
+
+    *df = 0;
+    *dr = 0;
+    if (from == to) {
+        return 0;
+    }
+    if (file_delta == 0) {
+        *dr = rank_delta > 0 ? 1 : -1;
+        return 1;
+    }
+    if (rank_delta == 0) {
+        *df = file_delta > 0 ? 1 : -1;
+        return 1;
+    }
+    if (abs(file_delta) == abs(rank_delta)) {
+        *df = file_delta > 0 ? 1 : -1;
+        *dr = rank_delta > 0 ? 1 : -1;
+        return 1;
+    }
+    return 0;
+}
+
+static uint64_t build_between(int from, int to) {
+    int df = 0;
+    int dr = 0;
+    if (!step_toward(from, to, &df, &dr)) {
+        return 0;
+    }
+
+    uint64_t mask = 0;
+    int file = file_of(from) + df;
+    int rank = rank_of(from) + dr;
+    while (on_board(file, rank)) {
+        int sq = rank * 8 + file;
+        if (sq == to) {
+            break;
+        }
+        mask |= square_mask(sq);
+        file += df;
+        rank += dr;
+    }
+    return mask;
+}
+
 void movegen_init_attack_tables(void) {
     if (attack_tables_initialized) {
         return;
@@ -173,6 +234,9 @@ void movegen_init_attack_tables(void) {
         king_attack_table[sq] = build_king_attacks(sq);
         pawn_attack_table[WHITE][sq] = build_pawn_attacks(sq, WHITE);
         pawn_attack_table[BLACK][sq] = build_pawn_attacks(sq, BLACK);
+        for (int to = 0; to < BOARD_SQUARES; ++to) {
+            between_table[sq][to] = build_between(sq, to);
+        }
     }
     attack_tables_initialized = 1;
 }
@@ -239,25 +303,25 @@ static void add_targets_from_mask(const Board *board, MoveList *list, int from, 
     }
 }
 
+static uint64_t attackers_to_square(const Board *board, int sq, int by_side, uint64_t occupied) {
+    uint64_t attackers = 0;
+    attackers |= pawn_attacks_from(sq, opposite_side(by_side)) & board->bitboards[by_side][PAWN];
+    attackers |= knight_attacks_from(sq) & board->bitboards[by_side][KNIGHT];
+    attackers |= bishop_attacks_from(sq, occupied) &
+                 (board->bitboards[by_side][BISHOP] | board->bitboards[by_side][QUEEN]);
+    attackers |= rook_attacks_from(sq, occupied) &
+                 (board->bitboards[by_side][ROOK] | board->bitboards[by_side][QUEEN]);
+    attackers |= king_attacks_from(sq) & board->bitboards[by_side][KING];
+    return attackers;
+}
+
+static int is_square_attacked_with_occupancy(const Board *board, int sq, int by_side, uint64_t occupied) {
+    return attackers_to_square(board, sq, by_side, occupied) != 0;
+}
+
 int is_square_attacked(const Board *board, int sq, int by_side) {
     movegen_init_attack_tables();
-    uint64_t target = square_mask(sq);
-    uint64_t pawns = board->bitboards[by_side][PAWN];
-    uint64_t pawn_attacks = by_side == WHITE
-        ? ((pawns & NOT_FILE_A) << 7) | ((pawns & NOT_FILE_H) << 9)
-        : ((pawns & NOT_FILE_A) >> 9) | ((pawns & NOT_FILE_H) >> 7);
-    if (pawn_attacks & target) return 1;
-
-    if (knight_attacks_from(sq) & board->bitboards[by_side][KNIGHT]) return 1;
-
-    uint64_t bishops_and_queens = board->bitboards[by_side][BISHOP] | board->bitboards[by_side][QUEEN];
-    if (bishop_attacks_from(sq, board->occupied) & bishops_and_queens) return 1;
-
-    uint64_t rooks_and_queens = board->bitboards[by_side][ROOK] | board->bitboards[by_side][QUEEN];
-    if (rook_attacks_from(sq, board->occupied) & rooks_and_queens) return 1;
-
-    if (king_attacks_from(sq) & board->bitboards[by_side][KING]) return 1;
-    return 0;
+    return is_square_attacked_with_occupancy(board, sq, by_side, board->occupied);
 }
 
 int in_check(const Board *board, int side) {
@@ -603,16 +667,345 @@ static void filter_legal_moves(Board *board, const MoveList *pseudo, MoveList *l
     *list = legal;
 }
 
-void generate_legal_moves(Board *board, MoveList *list) {
+void generate_legal_moves_filtered(Board *board, MoveList *list) {
     MoveList pseudo;
     generate_pseudo_moves(board, &pseudo);
     filter_legal_moves(board, &pseudo, list);
 }
 
-void generate_legal_noisy_moves(Board *board, MoveList *list) {
+void generate_legal_noisy_moves_filtered(Board *board, MoveList *list) {
     MoveList pseudo;
     generate_pseudo_noisy_moves(board, &pseudo);
     filter_legal_moves(board, &pseudo, list);
+}
+
+typedef struct {
+    int side;
+    int enemy;
+    int king_sq;
+    int check_count;
+    uint64_t own;
+    uint64_t enemy_occ;
+    uint64_t occupied;
+    uint64_t occupied_without_king;
+    uint64_t checkers;
+    uint64_t evasion_mask;
+    uint64_t pin_masks[BOARD_SQUARES];
+} LegalContext;
+
+static int slider_matches_direction(int piece_type_value, int df, int dr) {
+    int diagonal = df != 0 && dr != 0;
+    if (diagonal) {
+        return piece_type_value == BISHOP || piece_type_value == QUEEN;
+    }
+    return piece_type_value == ROOK || piece_type_value == QUEEN;
+}
+
+static void compute_pin_masks(const Board *board, LegalContext *ctx) {
+    static const int dirs[8][2] = {
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+        {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
+
+    for (int i = 0; i < BOARD_SQUARES; ++i) {
+        ctx->pin_masks[i] = 0;
+    }
+
+    for (int dir = 0; dir < 8; ++dir) {
+        int df = dirs[dir][0];
+        int dr = dirs[dir][1];
+        int file = file_of(ctx->king_sq) + df;
+        int rank = rank_of(ctx->king_sq) + dr;
+        int blocker_sq = -1;
+
+        while (on_board(file, rank)) {
+            int sq = rank * 8 + file;
+            int piece = board->squares[sq];
+            if (piece == EMPTY) {
+                file += df;
+                rank += dr;
+                continue;
+            }
+
+            if (piece_color(piece) == ctx->side) {
+                if (blocker_sq >= 0) {
+                    break;
+                }
+                blocker_sq = sq;
+                file += df;
+                rank += dr;
+                continue;
+            }
+
+            if (blocker_sq >= 0 && slider_matches_direction(piece_type(piece), df, dr)) {
+                ctx->pin_masks[blocker_sq] = between_table[ctx->king_sq][sq] | square_mask(sq);
+            }
+            break;
+        }
+    }
+}
+
+static int init_legal_context(const Board *board, LegalContext *ctx) {
+    movegen_init_attack_tables();
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->side = board->side_to_move;
+    ctx->enemy = opposite_side(ctx->side);
+    uint64_t king = board->bitboards[ctx->side][KING];
+    if (!king) {
+        return 0;
+    }
+
+    ctx->king_sq = bit_scan_forward(king);
+    ctx->own = board->occupancy[ctx->side];
+    ctx->enemy_occ = board->occupancy[ctx->enemy];
+    ctx->occupied = board->occupied;
+    ctx->occupied_without_king = board->occupied & ~square_mask(ctx->king_sq);
+    ctx->checkers = attackers_to_square(board, ctx->king_sq, ctx->enemy, ctx->occupied);
+    ctx->check_count = popcount64(ctx->checkers);
+    ctx->evasion_mask = UINT64_MAX;
+    if (ctx->check_count == 1) {
+        int checker_sq = bit_scan_forward(ctx->checkers);
+        ctx->evasion_mask = between_table[ctx->king_sq][checker_sq] | square_mask(checker_sq);
+    } else if (ctx->check_count > 1) {
+        ctx->evasion_mask = 0;
+    }
+    compute_pin_masks(board, ctx);
+    return 1;
+}
+
+static uint64_t constrained_targets(const LegalContext *ctx, int from, uint64_t targets, int noisy_only) {
+    targets &= ~ctx->own;
+    if (noisy_only) {
+        targets &= ctx->enemy_occ;
+    }
+    if (ctx->pin_masks[from]) {
+        targets &= ctx->pin_masks[from];
+    }
+    if (ctx->check_count > 0) {
+        targets &= ctx->evasion_mask;
+    }
+    return targets;
+}
+
+static void add_direct_targets(const Board *board, const LegalContext *ctx, MoveList *list,
+                               int from, int piece, uint64_t targets, int noisy_only) {
+    targets = constrained_targets(ctx, from, targets, noisy_only);
+    while (targets) {
+        int to = pop_lsb(&targets);
+        int flags = (ctx->enemy_occ & square_mask(to)) ? MOVE_CAPTURE : 0;
+        add_move(list, from, to, 0, flags);
+    }
+    (void)board;
+    (void)piece;
+}
+
+static int target_allowed_for_piece(const LegalContext *ctx, int from, int to) {
+    uint64_t target = square_mask(to);
+    if (ctx->pin_masks[from] && !(ctx->pin_masks[from] & target)) {
+        return 0;
+    }
+    if (ctx->check_count > 0 && !(ctx->evasion_mask & target)) {
+        return 0;
+    }
+    return 1;
+}
+
+static int en_passant_is_legal(const Board *board, int from, int to, int side) {
+    int moving_piece = side == WHITE ? WP : BP;
+    int captured_piece = side == WHITE ? BP : WP;
+    int captured_sq = side == WHITE ? to - 8 : to + 8;
+    if (captured_sq < 0 || captured_sq >= BOARD_SQUARES ||
+        board->squares[from] != moving_piece || board->squares[captured_sq] != captured_piece) {
+        return 0;
+    }
+
+    Board temp = *board;
+    clear_piece(&temp, moving_piece, from, NULL);
+    clear_piece(&temp, captured_piece, captured_sq, NULL);
+    put_piece(&temp, moving_piece, to, NULL);
+    return !in_check(&temp, side);
+}
+
+static void add_direct_pawn_push(const LegalContext *ctx, MoveList *list, int from, int to,
+                                 int promotion_rank, int noisy_only) {
+    if (!target_allowed_for_piece(ctx, from, to)) {
+        return;
+    }
+    if (rank_of(from) == promotion_rank) {
+        add_promotion_moves(list, from, to, 0);
+    } else if (!noisy_only) {
+        add_move(list, from, to, 0, 0);
+    }
+}
+
+static void add_direct_pawn_capture(const LegalContext *ctx, MoveList *list, int from, int to,
+                                    int promotion_rank) {
+    if (!(ctx->enemy_occ & square_mask(to)) || !target_allowed_for_piece(ctx, from, to)) {
+        return;
+    }
+    if (rank_of(from) == promotion_rank) {
+        add_promotion_moves(list, from, to, MOVE_CAPTURE);
+    } else {
+        add_move(list, from, to, 0, MOVE_CAPTURE);
+    }
+}
+
+static void generate_direct_pawn_moves(const Board *board, const LegalContext *ctx, MoveList *list,
+                                       int from, int noisy_only) {
+    int file = file_of(from);
+    int rank = rank_of(from);
+
+    if (ctx->side == WHITE) {
+        int one = from + 8;
+        if (rank < 7 && !(ctx->occupied & square_mask(one))) {
+            add_direct_pawn_push(ctx, list, from, one, 6, noisy_only);
+            if (!noisy_only && rank == 1 && !(ctx->occupied & square_mask(from + 16)) &&
+                target_allowed_for_piece(ctx, from, from + 16)) {
+                add_move(list, from, from + 16, 0, MOVE_DOUBLE_PAWN);
+            }
+        }
+        if (file > 0 && rank < 7) {
+            add_direct_pawn_capture(ctx, list, from, from + 7, 6);
+            if (from + 7 == board->en_passant &&
+                en_passant_is_legal(board, from, from + 7, ctx->side)) {
+                add_move(list, from, from + 7, 0, MOVE_EN_PASSANT | MOVE_CAPTURE);
+            }
+        }
+        if (file < 7 && rank < 7) {
+            add_direct_pawn_capture(ctx, list, from, from + 9, 6);
+            if (from + 9 == board->en_passant &&
+                en_passant_is_legal(board, from, from + 9, ctx->side)) {
+                add_move(list, from, from + 9, 0, MOVE_EN_PASSANT | MOVE_CAPTURE);
+            }
+        }
+    } else {
+        int one = from - 8;
+        if (rank > 0 && !(ctx->occupied & square_mask(one))) {
+            add_direct_pawn_push(ctx, list, from, one, 1, noisy_only);
+            if (!noisy_only && rank == 6 && !(ctx->occupied & square_mask(from - 16)) &&
+                target_allowed_for_piece(ctx, from, from - 16)) {
+                add_move(list, from, from - 16, 0, MOVE_DOUBLE_PAWN);
+            }
+        }
+        if (file > 0 && rank > 0) {
+            add_direct_pawn_capture(ctx, list, from, from - 9, 1);
+            if (from - 9 == board->en_passant &&
+                en_passant_is_legal(board, from, from - 9, ctx->side)) {
+                add_move(list, from, from - 9, 0, MOVE_EN_PASSANT | MOVE_CAPTURE);
+            }
+        }
+        if (file < 7 && rank > 0) {
+            add_direct_pawn_capture(ctx, list, from, from - 7, 1);
+            if (from - 7 == board->en_passant &&
+                en_passant_is_legal(board, from, from - 7, ctx->side)) {
+                add_move(list, from, from - 7, 0, MOVE_EN_PASSANT | MOVE_CAPTURE);
+            }
+        }
+    }
+}
+
+static void generate_direct_king_moves(const Board *board, const LegalContext *ctx, MoveList *list,
+                                       int noisy_only) {
+    uint64_t targets = king_attacks_from(ctx->king_sq) & ~ctx->own;
+    if (noisy_only) {
+        targets &= ctx->enemy_occ;
+    }
+    while (targets) {
+        int to = pop_lsb(&targets);
+        if (is_square_attacked_with_occupancy(board, to, ctx->enemy, ctx->occupied_without_king)) {
+            continue;
+        }
+        int flags = (ctx->enemy_occ & square_mask(to)) ? MOVE_CAPTURE : 0;
+        add_move(list, ctx->king_sq, to, 0, flags);
+    }
+
+    if (noisy_only || ctx->check_count > 0) {
+        return;
+    }
+
+    if (ctx->side == WHITE && ctx->king_sq == 4) {
+        if ((board->castling & CASTLE_WHITE_KING) && (board->bitboards[WHITE][ROOK] & square_mask(7)) &&
+            !(ctx->occupied & (square_mask(5) | square_mask(6))) &&
+            !is_square_attacked_with_occupancy(board, 5, BLACK, ctx->occupied_without_king) &&
+            !is_square_attacked_with_occupancy(board, 6, BLACK, ctx->occupied_without_king)) {
+            add_move(list, 4, 6, 0, MOVE_CASTLE);
+        }
+        if ((board->castling & CASTLE_WHITE_QUEEN) && (board->bitboards[WHITE][ROOK] & square_mask(0)) &&
+            !(ctx->occupied & (square_mask(3) | square_mask(2) | square_mask(1))) &&
+            !is_square_attacked_with_occupancy(board, 3, BLACK, ctx->occupied_without_king) &&
+            !is_square_attacked_with_occupancy(board, 2, BLACK, ctx->occupied_without_king)) {
+            add_move(list, 4, 2, 0, MOVE_CASTLE);
+        }
+    } else if (ctx->side == BLACK && ctx->king_sq == 60) {
+        if ((board->castling & CASTLE_BLACK_KING) && (board->bitboards[BLACK][ROOK] & square_mask(63)) &&
+            !(ctx->occupied & (square_mask(61) | square_mask(62))) &&
+            !is_square_attacked_with_occupancy(board, 61, WHITE, ctx->occupied_without_king) &&
+            !is_square_attacked_with_occupancy(board, 62, WHITE, ctx->occupied_without_king)) {
+            add_move(list, 60, 62, 0, MOVE_CASTLE);
+        }
+        if ((board->castling & CASTLE_BLACK_QUEEN) && (board->bitboards[BLACK][ROOK] & square_mask(56)) &&
+            !(ctx->occupied & (square_mask(59) | square_mask(58) | square_mask(57))) &&
+            !is_square_attacked_with_occupancy(board, 59, WHITE, ctx->occupied_without_king) &&
+            !is_square_attacked_with_occupancy(board, 58, WHITE, ctx->occupied_without_king)) {
+            add_move(list, 60, 58, 0, MOVE_CASTLE);
+        }
+    }
+}
+
+static void generate_legal_moves_direct_impl(Board *board, MoveList *list, int noisy_only) {
+    LegalContext ctx;
+    list->count = 0;
+    if (!init_legal_context(board, &ctx)) {
+        return;
+    }
+
+    generate_direct_king_moves(board, &ctx, list, noisy_only);
+    if (ctx.check_count > 1) {
+        return;
+    }
+
+    int side = ctx.side;
+    uint64_t pieces = board->bitboards[side][PAWN];
+    while (pieces) {
+        int from = pop_lsb(&pieces);
+        generate_direct_pawn_moves(board, &ctx, list, from, noisy_only);
+    }
+
+    pieces = board->bitboards[side][KNIGHT];
+    while (pieces) {
+        int from = pop_lsb(&pieces);
+        int piece = side == WHITE ? WN : BN;
+        add_direct_targets(board, &ctx, list, from, piece, knight_attacks_from(from), noisy_only);
+    }
+
+    pieces = board->bitboards[side][BISHOP];
+    while (pieces) {
+        int from = pop_lsb(&pieces);
+        int piece = side == WHITE ? WB : BB;
+        add_direct_targets(board, &ctx, list, from, piece, bishop_attacks_from(from, ctx.occupied), noisy_only);
+    }
+
+    pieces = board->bitboards[side][ROOK];
+    while (pieces) {
+        int from = pop_lsb(&pieces);
+        int piece = side == WHITE ? WR : BR;
+        add_direct_targets(board, &ctx, list, from, piece, rook_attacks_from(from, ctx.occupied), noisy_only);
+    }
+
+    pieces = board->bitboards[side][QUEEN];
+    while (pieces) {
+        int from = pop_lsb(&pieces);
+        int piece = side == WHITE ? WQ : BQ;
+        add_direct_targets(board, &ctx, list, from, piece, queen_attacks_from(from, ctx.occupied), noisy_only);
+    }
+}
+
+void generate_legal_moves(Board *board, MoveList *list) {
+    generate_legal_moves_direct_impl(board, list, 0);
+}
+
+void generate_legal_noisy_moves(Board *board, MoveList *list) {
+    generate_legal_moves_direct_impl(board, list, 1);
 }
 
 static int same_move_text(Move move, const char *text) {

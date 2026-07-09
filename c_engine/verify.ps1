@@ -31,6 +31,25 @@ if (($parallel | Select-Object -First 1) -notmatch "= 197281$") {
 }
 Write-Host "ok parallel perft depth 4: 197281"
 
+$compareCases = @(
+    @{ Depth = 5; Fen = "" },
+    @{ Depth = 4; Fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1" },
+    @{ Depth = 3; Fen = "8/8/8/3pP3/8/8/8/4K2k w - d6 0 1" },
+    @{ Depth = 3; Fen = "4k3/8/8/r2pP2K/8/8/8/8 w - d6 0 1" }
+)
+
+foreach ($case in $compareCases) {
+    if ($case.Fen) {
+        $output = & "$PSScriptRoot\xutrix.exe" perft-compare $case.Depth $case.Fen
+    } else {
+        $output = & "$PSScriptRoot\xutrix.exe" perft-compare $case.Depth
+    }
+    if (($output | Select-Object -Last 1) -ne "match") {
+        Write-Error "Direct movegen mismatch for depth $($case.Depth): $output"
+    }
+    Write-Host "ok direct/filter compare depth $($case.Depth)"
+}
+
 $best = & "$PSScriptRoot\xutrix.exe" best 3
 if (($best | Select-Object -First 1) -notmatch "^bestmove [a-h][1-8][a-h][1-8][qrbn]?$") {
     Write-Error "Search smoke test failed: $($best | Select-Object -First 1)"
