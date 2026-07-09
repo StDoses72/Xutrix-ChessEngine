@@ -7,15 +7,75 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+#define MAX_CLI_THREADS 64
+
 static void uci_loop(void);
-static int uci_search_threads = 1;
+static int uci_search_threads = 0;
 
 static int clamp_threads(int threads) {
     if (threads < 1) {
         return 1;
     }
-    if (threads > 64) {
-        return 64;
+    if (threads > MAX_CLI_THREADS) {
+        return MAX_CLI_THREADS;
+    }
+    return threads;
+}
+
+static int detect_logical_cores(void) {
+#ifdef _WIN32
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    return (int)info.dwNumberOfProcessors;
+#else
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    return cores > 0 ? (int)cores : 1;
+#endif
+}
+
+static int default_thread_count(void) {
+    return clamp_threads(detect_logical_cores());
+}
+
+static int effective_uci_threads(void) {
+    if (uci_search_threads < 1) {
+        uci_search_threads = default_thread_count();
+    }
+    return uci_search_threads;
+}
+
+static int parse_positive_int_token(const char *text, int *value) {
+    if (!text || *text == '\0') {
+        return 0;
+    }
+    char *end = NULL;
+    long parsed = strtol(text, &end, 10);
+    if (end == text || *end != '\0' || parsed < 1) {
+        return 0;
+    }
+    if (parsed > 1000000) {
+        parsed = 1000000;
+    }
+    *value = (int)parsed;
+    return 1;
+}
+
+static int optional_threads_from_args(int argc, char **argv, int index, int *fen_start) {
+    int threads = default_thread_count();
+    *fen_start = index;
+    if (argc > index) {
+        int parsed = 0;
+        if (parse_positive_int_token(argv[index], &parsed)) {
+            threads = clamp_threads(parsed);
+            *fen_start = index + 1;
+        }
     }
     return threads;
 }
@@ -24,11 +84,12 @@ static void print_usage(void) {
     printf("Xutrix C Engine\n\n");
     printf("Usage:\n");
     printf("  xutrix perft <depth> [fen]\n");
-    printf("  xutrix perft-par <depth> <threads> [fen]\n");
+    printf("  xutrix perft-par <depth> [threads] [fen]\n");
     printf("  xutrix divide <depth> [fen]\n");
     printf("  xutrix moves [fen]\n");
     printf("  xutrix best <depth> [fen]\n");
-    printf("  xutrix best-par <depth> <threads> [fen]\n");
+    printf("  xutrix best-single <depth> [fen]\n");
+    printf("  xutrix best-par <depth> [threads] [fen]\n");
     printf("  xutrix best-direct <depth> [fen]\n");
     printf("  xutrix bench-line <depth> <plies> <direct|iterative> [fen]\n");
     printf("  xutrix eval [fen]\n");
@@ -37,6 +98,7 @@ static void print_usage(void) {
     printf("Examples:\n");
     printf("  xutrix perft 3\n");
     printf("  xutrix best 4\n");
+    printf("  xutrix best-single 4\n");
 }
 
 static void trim_in_place(char *buffer) {
@@ -144,10 +206,11 @@ static void command_perft(int argc, char **argv) {
 
 static void command_perft_parallel(int argc, char **argv) {
     int depth = argc >= 3 ? atoi(argv[2]) : 1;
-    int threads = argc >= 4 ? clamp_threads(atoi(argv[3])) : 2;
+    int fen_start = 4;
+    int threads = optional_threads_from_args(argc, argv, 3, &fen_start);
     char fen[512];
     Board board;
-    if (!board_from_fen(&board, fen_from_args(argc, argv, 4, fen, sizeof(fen)))) {
+    if (!board_from_fen(&board, fen_from_args(argc, argv, fen_start, fen, sizeof(fen)))) {
         fprintf(stderr, "Invalid FEN.\n");
         return;
     }
@@ -203,12 +266,58 @@ static void command_best(int argc, char **argv, int iterative) {
     printf("time %.3f sec\n", seconds);
 }
 
-static void command_best_parallel(int argc, char **argv) {
+static void command_best_default(int argc, char **argv) {
     int depth = argc >= 3 ? atoi(argv[2]) : 4;
-    int threads = argc >= 4 ? clamp_threads(atoi(argv[3])) : 2;
+    int threads = default_thread_count();
     char fen[512];
     Board board;
-    if (!board_from_fen(&board, fen_from_args(argc, argv, 4, fen, sizeof(fen)))) {
+    if (!board_from_fen(&board, fen_from_args(argc, argv, 3, fen, sizeof(fen)))) {
+        fprintf(stderr, "Invalid FEN.\n");
+        return;
+    }
+
+    MoveList root_moves;
+    generate_legal_moves(&board, &root_moves);
+    if (root_moves.count == 0) {
+        printf("bestmove 0000\n");
+        if (in_check(&board, board.side_to_move)) {
+            printf("terminal checkmate\n");
+            printf("score side checkmated\n");
+            printf("score white %s 0\n", board.side_to_move == BLACK ? "mate" : "mated");
+        } else {
+            printf("terminal stalemate\n");
+            printf("score side cp 0\n");
+            printf("score white cp 0\n");
+        }
+        printf("nodes 0\n");
+        printf("time 0.000 sec\n");
+        return;
+    }
+
+    clock_t start = clock();
+    SearchResult result = threads > 1
+        ? search_iterative_parallel(&board, depth, threads)
+        : search_iterative(&board, depth);
+    double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
+    char move_text[6] = "0000";
+    if (result.best_move.from < 64) {
+        move_to_uci(result.best_move, move_text);
+    }
+    printf("bestmove %s\n", move_text);
+    printf("search %s\n", threads > 1 ? "parallel iterative" : "iterative");
+    printf("threads %d\n", threads);
+    print_search_score_pair(&board, result.score);
+    printf("nodes %" PRIu64 "\n", result.nodes);
+    printf("time %.3f sec\n", seconds);
+}
+
+static void command_best_parallel(int argc, char **argv) {
+    int depth = argc >= 3 ? atoi(argv[2]) : 4;
+    int fen_start = 4;
+    int threads = optional_threads_from_args(argc, argv, 3, &fen_start);
+    char fen[512];
+    Board board;
+    if (!board_from_fen(&board, fen_from_args(argc, argv, fen_start, fen, sizeof(fen)))) {
         fprintf(stderr, "Invalid FEN.\n");
         return;
     }
@@ -423,18 +532,22 @@ static void command_play(int argc, char **argv) {
             }
             make_move(&board, move);
         } else {
-            SearchResult result = search_iterative(&board, depth);
+            int threads = default_thread_count();
+            SearchResult result = threads > 1
+                ? search_iterative_parallel(&board, depth, threads)
+                : search_iterative(&board, depth);
             if (result.best_move.from >= 64) {
                 printf("No engine move.\n");
                 break;
             }
             char move_text[6];
             move_to_uci(result.best_move, move_text);
-            printf("engine: %s  side_score=%d  white_score=%d  nodes=%" PRIu64 "\n",
+            printf("engine: %s  side_score=%d  white_score=%d  nodes=%" PRIu64 "  threads=%d\n",
                    move_text,
                    result.score,
                    score_to_white_perspective(&board, result.score),
-                   result.nodes);
+                   result.nodes,
+                   threads);
             make_move(&board, result.best_move);
         }
     }
@@ -520,7 +633,7 @@ static void interactive_menu(void) {
             command_play(4, args);
         } else if (strcmp(input, "2") == 0) {
             char *args[] = {"xutrix", "best", "6"};
-            command_best(3, args, 1);
+            command_best_default(3, args);
         } else if (strcmp(input, "3") == 0) {
             char *args[] = {"xutrix", "perft", "4"};
             command_perft(3, args);
@@ -626,6 +739,10 @@ static void handle_setoption(char *line) {
 static void uci_loop(void) {
     Board board;
     board_set_startpos(&board);
+    int default_threads = default_thread_count();
+    if (uci_search_threads < 1) {
+        uci_search_threads = default_threads;
+    }
     char line[1024];
 
     while (fgets(line, sizeof(line), stdin)) {
@@ -634,7 +751,9 @@ static void uci_loop(void) {
         if (strcmp(line, "uci") == 0) {
             printf("id name Xutrix C\n");
             printf("id author XiangCheng Xu and Codex\n");
-            printf("option name Threads type spin default 1 min 1 max 64\n");
+            printf("option name Threads type spin default %d min 1 max %d\n",
+                   default_threads,
+                   MAX_CLI_THREADS);
             printf("uciok\n");
         } else if (strcmp(line, "isready") == 0) {
             printf("readyok\n");
@@ -654,8 +773,9 @@ static void uci_loop(void) {
                     depth = 1;
                 }
             }
-            SearchResult result = uci_search_threads > 1
-                ? search_iterative_parallel(&board, depth, uci_search_threads)
+            int threads = effective_uci_threads();
+            SearchResult result = threads > 1
+                ? search_iterative_parallel(&board, depth, threads)
                 : search_iterative(&board, depth);
             char best[6] = "0000";
             if (result.best_move.from < 64) {
@@ -667,13 +787,13 @@ static void uci_loop(void) {
                        result.score >= 0 ? "" : "-",
                        mate_moves_from_score(result.score),
                        result.nodes,
-                       uci_search_threads);
+                       threads);
             } else {
                 printf("info depth %d score cp %d nodes %" PRIu64 " threads %d\n",
                        depth,
                        result.score,
                        result.nodes,
-                       uci_search_threads);
+                       threads);
             }
             printf("bestmove %s\n", best);
         } else if (strcmp(line, "d") == 0) {
@@ -690,6 +810,7 @@ int main(int argc, char **argv) {
     if (nnue_try_load_from_env()) {
         fprintf(stderr, "Loaded NNUE from XUTRIX_NNUE.\n");
     }
+    uci_search_threads = default_thread_count();
 
     if (argc < 2) {
         interactive_menu();
@@ -705,6 +826,8 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[1], "moves") == 0) {
         command_moves(argc, argv);
     } else if (strcmp(argv[1], "best") == 0) {
+        command_best_default(argc, argv);
+    } else if (strcmp(argv[1], "best-single") == 0) {
         command_best(argc, argv, 1);
     } else if (strcmp(argv[1], "best-par") == 0) {
         command_best_parallel(argc, argv);
