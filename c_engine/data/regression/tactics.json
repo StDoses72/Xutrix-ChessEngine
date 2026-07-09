@@ -1,0 +1,10 @@
+[
+  {
+    "id": "stockfish-mate-net-001",
+    "fen": "1rbr2k1/pppp1ppp/2n5/4PQN1/8/3R3P/2P5/4qB1K w - - 0 28",
+    "depth": 15,
+    "expected_bestmoves": ["f5f7"],
+    "reference": "Stockfish 18 depth 20: bestmove f5f7, score mate 10",
+    "note": "White has a forcing attack. Xutrix may not see mate yet, but should keep the Stockfish first move."
+  }
+]
