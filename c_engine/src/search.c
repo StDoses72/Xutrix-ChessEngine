@@ -327,10 +327,6 @@ static int is_near_mate_score(int score) {
     return abs_score >= MATE_SCORE - MAX_PLY;
 }
 
-static int is_winning_mate_score(int score) {
-    return score >= MATE_SCORE - MAX_PLY;
-}
-
 static int is_mate_window(int alpha, int beta) {
     return is_near_mate_score(alpha) || is_near_mate_score(beta);
 }
@@ -1148,7 +1144,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
         if (current.best_move.from >= 64) {
             break;
         }
-        if (is_winning_mate_score(current.score)) {
+        if (current.score >= MATE_SCORE - 1) {
             break;
         }
     }
@@ -1189,9 +1185,7 @@ static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
     worker->completed_depth = worker->ctx.completed_depth;
     worker->completed = !worker->ctx.stopped && worker->completed_depth >= worker->max_depth &&
                         worker->result.best_move.from < 64;
-    if (worker->completed ||
-        (worker->completed_depth > 0 && worker->result.best_move.from < 64 &&
-         is_winning_mate_score(worker->result.score))) {
+    if (worker->completed) {
         xatomic_store_stop(worker->stop);
     }
     return XTHREAD_RETURN;
@@ -1207,14 +1201,6 @@ static int lazy_smp_worker_is_better(const LazySmpWorker *candidate, const LazyS
     }
     if (!current || !lazy_smp_worker_has_result(current)) {
         return 1;
-    }
-    int candidate_mate = is_winning_mate_score(candidate->result.score);
-    int current_mate = is_winning_mate_score(current->result.score);
-    if (candidate_mate != current_mate) {
-        return candidate_mate;
-    }
-    if (candidate_mate && candidate->result.score != current->result.score) {
-        return candidate->result.score > current->result.score;
     }
     if (candidate->completed_depth != current->completed_depth) {
         return candidate->completed_depth > current->completed_depth;
