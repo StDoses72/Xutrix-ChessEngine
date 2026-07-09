@@ -129,6 +129,8 @@ int evaluate_board(const Board *board);
 int evaluate_classic_board(const Board *board);
 
 void tt_clear(void);
+int tt_resize_mb(int mb);
+int tt_hash_mb(void);
 uint64_t perft(Board *board, int depth);
 uint64_t perft_filtered(Board *board, int depth);
 uint64_t perft_parallel(Board *board, int depth, int threads);

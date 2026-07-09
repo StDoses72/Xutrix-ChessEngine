@@ -11,8 +11,10 @@
 #include <stdatomic.h>
 #endif
 
-#define TT_SIZE (1u << 20)
-#define TT_MASK (TT_SIZE - 1)
+#define TT_BUCKET_SIZE 4
+#define TT_DEFAULT_MB 32
+#define TT_MIN_MB 1
+#define TT_MAX_MB 4096
 #define TT_LOCK_COUNT (1u << 12)
 #define TT_LOCK_MASK (TT_LOCK_COUNT - 1)
 #define MAX_SEARCH_THREADS 64
@@ -31,7 +33,12 @@ typedef struct {
     int score;
     int depth;
     uint8_t flag;
+    uint8_t generation;
 } TTEntry;
+
+typedef struct {
+    TTEntry entries[TT_BUCKET_SIZE];
+} TTBucket;
 
 typedef struct {
     int side_to_move;
@@ -46,7 +53,7 @@ typedef struct {
     uint64_t nodes;
     Move killer_moves[MAX_PLY][2];
     int history_moves[2][64][64];
-    TTEntry *tt;
+    TTBucket *tt;
     uint64_t tt_mask;
     int worker_id;
     int lock_tt;
@@ -72,7 +79,11 @@ typedef void *XThreadReturn;
 #define XTHREAD_RETURN NULL
 #endif
 
-static TTEntry transposition_table[TT_SIZE];
+static TTBucket *transposition_table;
+static uint64_t tt_bucket_count;
+static uint64_t tt_mask;
+static int tt_configured_mb = TT_DEFAULT_MB;
+static uint8_t tt_generation = 1;
 static XMutex tt_locks[TT_LOCK_COUNT];
 static int tt_locks_ready;
 
@@ -151,6 +162,101 @@ static void tt_locks_init_once(void) {
         xmutex_init(&tt_locks[i]);
     }
     tt_locks_ready = 1;
+}
+
+static uint64_t floor_power_of_two_u64(uint64_t value) {
+    uint64_t result = 1;
+    while (result <= value / 2) {
+        result <<= 1;
+    }
+    return result;
+}
+
+static uint64_t tt_bucket_count_for_mb(int mb) {
+    if (mb < TT_MIN_MB) {
+        mb = TT_MIN_MB;
+    }
+    uint64_t bytes = (uint64_t)mb * 1024u * 1024u;
+    uint64_t buckets = bytes / (uint64_t)sizeof(TTBucket);
+    if (buckets < 1) {
+        buckets = 1;
+    }
+    return floor_power_of_two_u64(buckets);
+}
+
+static int tt_mb_for_bucket_count(uint64_t buckets) {
+    uint64_t bytes = buckets * (uint64_t)sizeof(TTBucket);
+    uint64_t mb = bytes / (1024u * 1024u);
+    if (mb < 1) {
+        mb = 1;
+    }
+    if (mb > (uint64_t)TT_MAX_MB) {
+        mb = TT_MAX_MB;
+    }
+    return (int)mb;
+}
+
+static void tt_next_generation(void) {
+    ++tt_generation;
+    if (tt_generation == 0) {
+        tt_generation = 1;
+    }
+}
+
+int tt_resize_mb(int mb) {
+    if (mb < TT_MIN_MB) {
+        mb = TT_MIN_MB;
+    }
+    if (mb > TT_MAX_MB) {
+        mb = TT_MAX_MB;
+    }
+
+    uint64_t buckets = tt_bucket_count_for_mb(mb);
+    TTBucket *new_table = NULL;
+    while (buckets >= 1) {
+        new_table = (TTBucket *)calloc((size_t)buckets, sizeof(TTBucket));
+        if (new_table) {
+            break;
+        }
+        buckets >>= 1;
+    }
+    if (!new_table) {
+        return 0;
+    }
+
+    free(transposition_table);
+    transposition_table = new_table;
+    tt_bucket_count = buckets;
+    tt_mask = buckets - 1;
+    tt_configured_mb = tt_mb_for_bucket_count(buckets);
+    tt_next_generation();
+    return tt_configured_mb;
+}
+
+static void tt_ensure_initialized(void) {
+    if (!transposition_table) {
+        (void)tt_resize_mb(tt_configured_mb);
+    }
+}
+
+int tt_hash_mb(void) {
+    tt_ensure_initialized();
+    return tt_configured_mb;
+}
+
+static TTBucket *tt_shared_table(void) {
+    tt_ensure_initialized();
+    return transposition_table;
+}
+
+static uint64_t tt_shared_mask(void) {
+    tt_ensure_initialized();
+    return tt_mask;
+}
+
+static void tt_start_search(void) {
+    tt_ensure_initialized();
+    tt_next_generation();
 }
 
 static int context_uses_shared_tt(const SearchContext *ctx) {
@@ -267,10 +373,10 @@ static void clear_history(SearchContext *ctx) {
     memset(ctx->history_moves, 0, sizeof(ctx->history_moves));
 }
 
-static void search_context_init(SearchContext *ctx, TTEntry *tt, uint64_t tt_mask) {
+static void search_context_init(SearchContext *ctx, TTBucket *tt, uint64_t mask) {
     memset(ctx, 0, sizeof(*ctx));
     ctx->tt = tt;
-    ctx->tt_mask = tt_mask;
+    ctx->tt_mask = mask;
     if (tt == transposition_table) {
         tt_locks_init_once();
     }
@@ -282,16 +388,74 @@ static int tt_read(SearchContext *ctx, uint64_t hash, TTEntry *out) {
         return 0;
     }
 
-    TTEntry *entry = &ctx->tt[hash & ctx->tt_mask];
-    if (context_uses_shared_tt(ctx)) {
-        XMutex *lock = tt_lock_for_hash(hash);
-        xmutex_lock(lock);
-        *out = *entry;
-        xmutex_unlock(lock);
-    } else {
-        *out = *entry;
+    TTBucket *bucket = &ctx->tt[hash & ctx->tt_mask];
+    int found = 0;
+    for (int i = 0; i < TT_BUCKET_SIZE; ++i) {
+        TTEntry entry = bucket->entries[i];
+        if (entry.flag != TT_EMPTY && entry.key == hash) {
+            *out = entry;
+            found = 1;
+            break;
+        }
     }
-    return 1;
+    return found;
+}
+
+static int tt_replacement_value(const TTEntry *entry) {
+    if (entry->flag == TT_EMPTY) {
+        return -1000000;
+    }
+    int value = entry->depth * 8;
+    if (entry->flag == TT_EXACT) {
+        value += 8;
+    }
+    if (entry->generation == tt_generation) {
+        value += 64;
+    }
+    return value;
+}
+
+static void tt_assign_entry(TTEntry *dst, const TTEntry *src) {
+    dst->flag = TT_EMPTY;
+    dst->key = src->key;
+    dst->best = src->best;
+    dst->score = src->score;
+    dst->depth = src->depth;
+    dst->generation = src->generation;
+    dst->flag = src->flag;
+}
+
+static void tt_store_entry(TTEntry *dst, const TTEntry *src, int safe_publish) {
+    if (safe_publish) {
+        tt_assign_entry(dst, src);
+    } else {
+        *dst = *src;
+    }
+}
+
+static void tt_write_bucket(TTBucket *bucket, const TTEntry *value, int safe_publish) {
+    TTEntry *replace = &bucket->entries[0];
+    int replace_value = tt_replacement_value(replace);
+
+    for (int i = 0; i < TT_BUCKET_SIZE; ++i) {
+        TTEntry *entry = &bucket->entries[i];
+        if (entry->flag != TT_EMPTY && entry->key == value->key) {
+            if (value->depth >= entry->depth || value->flag == TT_EXACT || entry->generation != tt_generation) {
+                tt_store_entry(entry, value, safe_publish);
+            } else if (is_valid_move(value->best)) {
+                entry->best = value->best;
+                entry->generation = tt_generation;
+            }
+            return;
+        }
+        int candidate_value = tt_replacement_value(entry);
+        if (candidate_value < replace_value) {
+            replace = entry;
+            replace_value = candidate_value;
+        }
+    }
+
+    tt_store_entry(replace, value, safe_publish);
 }
 
 static void tt_write(SearchContext *ctx, uint64_t hash, const TTEntry *value) {
@@ -299,21 +463,21 @@ static void tt_write(SearchContext *ctx, uint64_t hash, const TTEntry *value) {
         return;
     }
 
-    TTEntry *entry = &ctx->tt[hash & ctx->tt_mask];
+    TTBucket *bucket = &ctx->tt[hash & ctx->tt_mask];
     if (context_uses_shared_tt(ctx)) {
         XMutex *lock = tt_lock_for_hash(hash);
         xmutex_lock(lock);
-        *entry = *value;
+        tt_write_bucket(bucket, value, 1);
         xmutex_unlock(lock);
     } else {
-        *entry = *value;
+        tt_write_bucket(bucket, value, 0);
     }
 }
 
 static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, int *beta,
                     Move *tt_move, int *score) {
     TTEntry entry;
-    if (!tt_read(ctx, hash, &entry) || entry.flag == TT_EMPTY || entry.key != hash) {
+    if (!tt_read(ctx, hash, &entry)) {
         return 0;
     }
 
@@ -340,7 +504,7 @@ static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, in
 
 static Move tt_best_move(SearchContext *ctx, uint64_t hash) {
     TTEntry entry;
-    if (!tt_read(ctx, hash, &entry) || entry.flag == TT_EMPTY || entry.key != hash) {
+    if (!tt_read(ctx, hash, &entry)) {
         return invalid_move();
     }
     return entry.best;
@@ -353,6 +517,7 @@ static void tt_store(SearchContext *ctx, uint64_t hash, Move best_move, int scor
     entry.score = score;
     entry.depth = depth;
     entry.flag = (uint8_t)flag;
+    entry.generation = tt_generation;
     tt_write(ctx, hash, &entry);
 }
 
@@ -381,7 +546,11 @@ static void store_history(SearchContext *ctx, Move move, int side, int depth) {
 
 void tt_clear(void) {
     tt_locks_init_once();
-    memset(transposition_table, 0, sizeof(transposition_table));
+    tt_ensure_initialized();
+    if (transposition_table && tt_bucket_count > 0) {
+        memset(transposition_table, 0, (size_t)tt_bucket_count * sizeof(TTBucket));
+    }
+    tt_next_generation();
 }
 
 static int piece_value(int piece) {
@@ -779,7 +948,8 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
 
 SearchResult search_best_move(Board *board, int depth) {
     SearchContext ctx;
-    search_context_init(&ctx, transposition_table, TT_MASK);
+    tt_start_search();
+    search_context_init(&ctx, tt_shared_table(), tt_shared_mask());
     return search_root(&ctx, board, depth, -INF_SCORE, INF_SCORE, 1);
 }
 
@@ -850,7 +1020,8 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
 
 SearchResult search_iterative(Board *board, int max_depth) {
     SearchContext ctx;
-    search_context_init(&ctx, transposition_table, TT_MASK);
+    tt_start_search();
+    search_context_init(&ctx, tt_shared_table(), tt_shared_mask());
     return search_iterative_with_context(&ctx, board, max_depth);
 }
 
@@ -871,7 +1042,7 @@ typedef struct {
 static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
     LazySmpWorker *worker = (LazySmpWorker *)arg;
     Board board = *worker->board;
-    search_context_init(&worker->ctx, transposition_table, TT_MASK);
+    search_context_init(&worker->ctx, tt_shared_table(), tt_shared_mask());
     worker->ctx.worker_id = worker->worker_id;
     worker->ctx.lock_tt = 1;
     worker->ctx.stop = worker->stop;
@@ -891,6 +1062,7 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
         return search_iterative(board, max_depth);
     }
 
+    tt_start_search();
     tt_locks_init_once();
 
     XThread *handles = (XThread *)calloc((size_t)threads, sizeof(XThread));

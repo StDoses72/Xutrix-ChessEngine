@@ -15,6 +15,7 @@
 #endif
 
 #define MAX_CLI_THREADS 64
+#define MAX_UCI_HASH_MB 4096
 
 static void uci_loop(void);
 static int uci_search_threads = 0;
@@ -777,6 +778,15 @@ static void handle_setoption(char *line) {
 
     if (strncmp(name, "Threads", 7) == 0) {
         uci_search_threads = clamp_threads(atoi(value));
+    } else if (strncmp(name, "Hash", 4) == 0) {
+        int mb = atoi(value);
+        if (mb < 1) {
+            mb = 1;
+        }
+        if (mb > MAX_UCI_HASH_MB) {
+            mb = MAX_UCI_HASH_MB;
+        }
+        (void)tt_resize_mb(mb);
     }
 }
 
@@ -798,6 +808,9 @@ static void uci_loop(void) {
             printf("option name Threads type spin default %d min 1 max %d\n",
                    default_threads,
                    MAX_CLI_THREADS);
+            printf("option name Hash type spin default %d min 1 max %d\n",
+                   tt_hash_mb(),
+                   MAX_UCI_HASH_MB);
             printf("uciok\n");
         } else if (strcmp(line, "isready") == 0) {
             printf("readyok\n");
@@ -851,6 +864,7 @@ static void uci_loop(void) {
 
 int main(int argc, char **argv) {
     xutrix_init();
+    (void)tt_hash_mb();
     if (nnue_try_load_from_env()) {
         fprintf(stderr, "Loaded NNUE from XUTRIX_NNUE.\n");
     }
