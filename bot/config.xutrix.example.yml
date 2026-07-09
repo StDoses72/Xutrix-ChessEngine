@@ -1,0 +1,115 @@
+token: "PASTE_LICHESS_BOT_TOKEN_HERE"
+url: "https://lichess.org/"
+
+engine:
+  dir: "D:/doses72Proj/Xutrix-ChessEngine/c_engine"
+  name: "xutrix.exe"
+  debug: false
+  working_dir: "D:/doses72Proj/Xutrix-ChessEngine/c_engine"
+  protocol: "uci"
+  ponder: false
+
+  polyglot:
+    enabled: false
+
+  draw_or_resign:
+    resign_enabled: false
+    resign_score: -1000
+    resign_for_egtb_minus_two: true
+    resign_moves: 3
+    offer_draw_enabled: true
+    offer_draw_score: 0
+    offer_draw_for_egtb_zero: true
+    offer_draw_moves: 10
+    offer_draw_pieces: 10
+
+  online_moves:
+    max_out_of_book_moves: 10
+    max_retries: 2
+    chessdb_book:
+      enabled: false
+    lichess_cloud_analysis:
+      enabled: false
+    lichess_opening_explorer:
+      enabled: false
+    online_egtb:
+      enabled: false
+
+  lichess_bot_tbs:
+    syzygy:
+      enabled: false
+    gaviota:
+      enabled: false
+
+  homemade_options: {}
+
+  uci_options:
+    Threads: 16
+    Hash: 512
+    go_commands:
+      depth: 12
+
+  silence_stderr: false
+
+abort_time: 30
+fake_think_time: false
+rate_limiting_delay: 0
+move_overhead: 2000
+max_takebacks_accepted: 0
+quit_after_all_games_finish: false
+
+correspondence:
+  move_time: 60
+  checkin_period: 300
+  disconnect_time: 150
+  ponder: false
+
+challenge:
+  concurrency: 1
+  games_reserved_for_humans: 0
+  sort_by: "best"
+  preference: "none"
+  accept_bot: true
+  only_bot: false
+  max_increment: 20
+  min_increment: 0
+  max_base: 1800
+  min_base: 0
+  max_days: 14
+  min_days: 1
+  variants:
+    - standard
+  time_controls:
+    - bullet
+    - blitz
+    - rapid
+    - classical
+  modes:
+    - casual
+    - rated
+  bullet_requires_increment: false
+  max_simultaneous_games_per_user: 2
+
+greeting:
+  hello: "Hi! I'm {me}, the Xutrix chess engine. Good luck!"
+  goodbye: "Good game!"
+  hello_spectators: "Hi! I'm {me}, running Xutrix."
+  goodbye_spectators: "Thanks for watching!"
+
+pgn_directory: "game_records"
+pgn_file_grouping: "game"
+
+matchmaking:
+  allow_matchmaking: true
+  allow_during_games: false
+  challenge_variant: "standard"
+  challenge_timeout: 30
+  challenge_initial_time:
+    - 180
+  challenge_increment:
+    - 2
+  opponent_rating_difference: 300
+  rating_preference: "none"
+  challenge_mode: "rated"
+  challenge_filter: none
+  include_challenge_block_list: false

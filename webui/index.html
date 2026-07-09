@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Xutrix Console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="board-workspace" aria-label="Xutrix chess board">
+      <div class="topline">
+        <div>
+          <div class="brand">Xutrix Console</div>
+          <div class="position-line" id="positionLine">startpos</div>
+        </div>
+        <div class="status-cluster">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">ready</span>
+        </div>
+      </div>
+
+      <div class="board-frame">
+        <div class="board" id="board"></div>
+      </div>
+    </section>
+
+    <aside class="side-panel" aria-label="Controls">
+      <div class="control-row">
+        <label for="depth">Depth</label>
+        <input id="depth" type="range" min="1" max="20" value="12">
+        <output id="depthValue">12</output>
+      </div>
+
+      <div class="segmented" role="group" aria-label="Human side">
+        <button id="sideWhite" class="active" type="button">White</button>
+        <button id="sideBlack" type="button">Black</button>
+      </div>
+
+      <label class="toggle">
+        <input id="autoEngine" type="checkbox" checked>
+        <span>Auto engine</span>
+      </label>
+
+      <div class="button-grid">
+        <button id="engineMove" type="button">Engine</button>
+        <button id="undoMove" type="button">Undo</button>
+        <button id="flipBoard" type="button">Flip</button>
+        <button id="newGame" type="button">New</button>
+      </div>
+
+      <div class="engine-readout">
+        <div class="metric">
+          <span>Best</span>
+          <strong id="bestMove">-</strong>
+        </div>
+        <div class="metric">
+          <span>Score</span>
+          <strong id="score">-</strong>
+        </div>
+        <div class="metric">
+          <span>Nodes</span>
+          <strong id="nodes">-</strong>
+        </div>
+        <div class="metric">
+          <span>Time</span>
+          <strong id="time">-</strong>
+        </div>
+      </div>
+
+      <div class="record-panel">
+        <div class="record-head">
+          <span>Match Record</span>
+          <strong id="recordLine">3-0-0</strong>
+        </div>
+        <div class="record-grid">
+          <div>
+            <span>Games</span>
+            <strong id="recordGames">3</strong>
+          </div>
+          <div>
+            <span>Rating</span>
+            <strong id="recordRating">1500</strong>
+          </div>
+          <div>
+            <span>Last</span>
+            <strong id="recordLastDelta">-</strong>
+          </div>
+        </div>
+        <label class="rating-row" for="currentRating">
+          <span>Current rating</span>
+          <input id="currentRating" type="number" min="100" max="3500" step="1" value="1500">
+        </label>
+        <label class="rating-row" for="ratingDelta">
+          <span>Rating change</span>
+          <input id="ratingDelta" type="text" inputmode="numeric" pattern="[+-]?[0-9]+(\s*/\s*[+-]?[0-9]+){0,2}" placeholder="+8">
+        </label>
+        <div class="record-actions">
+          <button id="recordWin" type="button">Win</button>
+          <button id="recordDraw" type="button">Draw</button>
+          <button id="recordLoss" type="button">Loss</button>
+          <button id="recordReset" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div class="fen-block">
+        <label for="fenInput">FEN</label>
+        <textarea id="fenInput" rows="3" spellcheck="false"></textarea>
+        <button id="loadFen" type="button">Load FEN</button>
+      </div>
+
+      <div class="history">
+        <div class="history-head">
+          <span>Moves</span>
+          <span id="moveCount">0</span>
+        </div>
+        <ol id="moveList"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <div class="promotion-popover hidden" id="promotionPopover" role="dialog" aria-label="Promotion">
+    <button data-promo="q" type="button">&#9819;</button>
+    <button data-promo="r" type="button">&#9820;</button>
+    <button data-promo="b" type="button">&#9821;</button>
+    <button data-promo="n" type="button">&#9822;</button>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

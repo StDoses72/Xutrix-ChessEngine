@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#include <io.h>
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -50,6 +51,14 @@ static int effective_uci_threads(void) {
         uci_search_threads = default_thread_count();
     }
     return uci_search_threads;
+}
+
+static int stdin_is_interactive(void) {
+#ifdef _WIN32
+    return _isatty(_fileno(stdin));
+#else
+    return isatty(STDIN_FILENO);
+#endif
 }
 
 static int parse_positive_int_token(const char *text, int *value) {
@@ -871,6 +880,10 @@ int main(int argc, char **argv) {
     uci_search_threads = default_thread_count();
 
     if (argc < 2) {
+        if (!stdin_is_interactive()) {
+            uci_loop();
+            return 0;
+        }
         interactive_menu();
         return 0;
     }

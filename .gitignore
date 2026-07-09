@@ -11,3 +11,10 @@ c_engine/data/raw/
 c_engine/data/positions/
 c_engine/data/labeled/
 c_engine/tools/stockfish/
+
+bot/lichess-bot/
+bot/config.yml
+bot/*.log
+bot/game_records/
+bot/venv/
+lichess_bot_auto_logs/
