@@ -110,6 +110,7 @@ uint64_t board_hash_piece(int piece, int sq);
 uint64_t board_hash_castling(uint8_t castling);
 uint64_t board_hash_en_passant(int8_t en_passant);
 uint64_t board_hash_side_to_move(void);
+void movegen_init_attack_tables(void);
 
 int is_square_attacked(const Board *board, int sq, int by_side);
 int in_check(const Board *board, int side);

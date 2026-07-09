@@ -77,6 +77,7 @@ void xutrix_init(void) {
         zobrist_ep_file[i] = splitmix64_next(&seed);
     }
     zobrist_black_to_move = splitmix64_next(&seed);
+    movegen_init_attack_tables();
     initialized = 1;
 }
 
