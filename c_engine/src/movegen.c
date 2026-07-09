@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 static int file_of(int sq) {
     return sq & 7;
 }
@@ -14,6 +18,72 @@ static int rank_of(int sq) {
 
 static int on_board(int file, int rank) {
     return file >= 0 && file < 8 && rank >= 0 && rank < 8;
+}
+
+static uint64_t square_mask(int sq) {
+    return UINT64_C(1) << sq;
+}
+
+static int bit_scan_forward(uint64_t bb) {
+#if defined(_MSC_VER)
+    unsigned long index = 0;
+    _BitScanForward64(&index, bb);
+    return (int)index;
+#elif defined(__GNUC__) || defined(__clang__)
+    return __builtin_ctzll(bb);
+#else
+    int sq = 0;
+    while ((bb & square_mask(sq)) == 0) {
+        ++sq;
+    }
+    return sq;
+#endif
+}
+
+static int pop_lsb(uint64_t *bb) {
+    int sq = bit_scan_forward(*bb);
+    *bb &= *bb - 1;
+    return sq;
+}
+
+static void bitboard_add_piece(Board *board, int piece, int sq, uint64_t *hash) {
+    if (piece == EMPTY) {
+        return;
+    }
+    int side = piece_color(piece);
+    int type = piece_type(piece);
+    uint64_t mask = square_mask(sq);
+    board->bitboards[side][type] |= mask;
+    board->occupancy[side] |= mask;
+    board->occupied |= mask;
+    if (hash) {
+        *hash ^= board_hash_piece(piece, sq);
+    }
+}
+
+static void bitboard_remove_piece(Board *board, int piece, int sq, uint64_t *hash) {
+    if (piece == EMPTY) {
+        return;
+    }
+    int side = piece_color(piece);
+    int type = piece_type(piece);
+    uint64_t mask = square_mask(sq);
+    board->bitboards[side][type] &= ~mask;
+    board->occupancy[side] &= ~mask;
+    board->occupied &= ~mask;
+    if (hash) {
+        *hash ^= board_hash_piece(piece, sq);
+    }
+}
+
+static void put_piece(Board *board, int piece, int sq, uint64_t *hash) {
+    board->squares[sq] = (int8_t)piece;
+    bitboard_add_piece(board, piece, sq, hash);
+}
+
+static void clear_piece(Board *board, int piece, int sq, uint64_t *hash) {
+    board->squares[sq] = EMPTY;
+    bitboard_remove_piece(board, piece, sq, hash);
 }
 
 static void add_move(MoveList *list, int from, int to, int promotion, int flags) {
@@ -119,11 +189,9 @@ int is_square_attacked(const Board *board, int sq, int by_side) {
 }
 
 int in_check(const Board *board, int side) {
-    int king = side == WHITE ? WK : BK;
-    for (int sq = 0; sq < 64; ++sq) {
-        if (board->squares[sq] == king) {
-            return is_square_attacked(board, sq, opposite_side(side));
-        }
+    uint64_t king_bb = board->bitboards[side][KING];
+    if (king_bb) {
+        return is_square_attacked(board, bit_scan_forward(king_bb), opposite_side(side));
     }
     return 0;
 }
@@ -306,13 +374,13 @@ void generate_pseudo_moves(const Board *board, MoveList *list) {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1}
     };
 
-    for (int sq = 0; sq < 64; ++sq) {
-        int piece = board->squares[sq];
-        if (piece == EMPTY || piece_color(piece) != board->side_to_move) {
-            continue;
-        }
-
-        switch (piece_type(piece)) {
+    int side = board->side_to_move;
+    for (int type = PAWN; type <= KING; ++type) {
+        uint64_t pieces = board->bitboards[side][type];
+        int piece = side == WHITE ? type : -type;
+        while (pieces) {
+            int sq = pop_lsb(&pieces);
+            switch (type) {
             case PAWN:
                 generate_pawn_moves(board, list, sq, piece);
                 break;
@@ -333,6 +401,7 @@ void generate_pseudo_moves(const Board *board, MoveList *list) {
                 break;
             default:
                 break;
+            }
         }
     }
 }
@@ -355,33 +424,39 @@ int make_move(Board *board, Move move) {
     undo->hash = board->hash;
     undo->captured = board->squares[move.to];
 
+    uint64_t hash = board->hash;
+    hash ^= board_hash_castling(board->castling);
+    hash ^= board_hash_en_passant(board->en_passant);
+
     int captured_square = move.to;
     if (move.flags & MOVE_EN_PASSANT) {
         captured_square = board->side_to_move == WHITE ? move.to - 8 : move.to + 8;
         undo->captured = board->squares[captured_square];
-        board->squares[captured_square] = EMPTY;
+        clear_piece(board, undo->captured, captured_square, &hash);
+    } else if (undo->captured != EMPTY) {
+        clear_piece(board, undo->captured, move.to, &hash);
     }
 
-    board->squares[move.to] = board->squares[move.from];
-    board->squares[move.from] = EMPTY;
-
+    clear_piece(board, piece, move.from, &hash);
+    int placed_piece = piece;
     if (move.flags & MOVE_PROMOTION) {
-        board->squares[move.to] = (int8_t)(board->side_to_move == WHITE ? move.promotion : -move.promotion);
+        placed_piece = board->side_to_move == WHITE ? move.promotion : -move.promotion;
     }
+    put_piece(board, placed_piece, move.to, &hash);
 
     if (move.flags & MOVE_CASTLE) {
         if (move.to == 6) {
-            board->squares[5] = WR;
-            board->squares[7] = EMPTY;
+            clear_piece(board, WR, 7, &hash);
+            put_piece(board, WR, 5, &hash);
         } else if (move.to == 2) {
-            board->squares[3] = WR;
-            board->squares[0] = EMPTY;
+            clear_piece(board, WR, 0, &hash);
+            put_piece(board, WR, 3, &hash);
         } else if (move.to == 62) {
-            board->squares[61] = BR;
-            board->squares[63] = EMPTY;
+            clear_piece(board, BR, 63, &hash);
+            put_piece(board, BR, 61, &hash);
         } else if (move.to == 58) {
-            board->squares[59] = BR;
-            board->squares[56] = EMPTY;
+            clear_piece(board, BR, 56, &hash);
+            put_piece(board, BR, 59, &hash);
         }
     }
 
@@ -417,7 +492,10 @@ int make_move(Board *board, Move move) {
         ++board->fullmove_number;
     }
     board->side_to_move = opposite_side(board->side_to_move);
-    board->hash = board_compute_hash(board);
+    hash ^= board_hash_side_to_move();
+    hash ^= board_hash_castling(board->castling);
+    hash ^= board_hash_en_passant(board->en_passant);
+    board->hash = hash;
     return 1;
 }
 
@@ -439,28 +517,30 @@ void undo_move(Board *board) {
         moved_piece = board->side_to_move == WHITE ? WP : BP;
     }
 
-    board->squares[move.from] = (int8_t)moved_piece;
-    board->squares[move.to] = undo->captured;
+    clear_piece(board, board->squares[move.to], move.to, NULL);
+    put_piece(board, moved_piece, move.from, NULL);
 
     if (move.flags & MOVE_EN_PASSANT) {
         board->squares[move.to] = EMPTY;
         int captured_square = board->side_to_move == WHITE ? move.to - 8 : move.to + 8;
-        board->squares[captured_square] = undo->captured;
+        put_piece(board, undo->captured, captured_square, NULL);
+    } else if (undo->captured != EMPTY) {
+        put_piece(board, undo->captured, move.to, NULL);
     }
 
     if (move.flags & MOVE_CASTLE) {
         if (move.to == 6) {
-            board->squares[7] = WR;
-            board->squares[5] = EMPTY;
+            clear_piece(board, WR, 5, NULL);
+            put_piece(board, WR, 7, NULL);
         } else if (move.to == 2) {
-            board->squares[0] = WR;
-            board->squares[3] = EMPTY;
+            clear_piece(board, WR, 3, NULL);
+            put_piece(board, WR, 0, NULL);
         } else if (move.to == 62) {
-            board->squares[63] = BR;
-            board->squares[61] = EMPTY;
+            clear_piece(board, BR, 61, NULL);
+            put_piece(board, BR, 63, NULL);
         } else if (move.to == 58) {
-            board->squares[56] = BR;
-            board->squares[59] = EMPTY;
+            clear_piece(board, BR, 59, NULL);
+            put_piece(board, BR, 56, NULL);
         }
     }
 

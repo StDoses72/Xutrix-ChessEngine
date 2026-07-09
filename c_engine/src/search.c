@@ -220,17 +220,8 @@ static int is_mate_window(int alpha, int beta) {
 }
 
 static int has_non_pawn_material(const Board *board, int side) {
-    for (int sq = 0; sq < 64; ++sq) {
-        int piece = board->squares[sq];
-        if (piece == EMPTY || piece_color(piece) != side) {
-            continue;
-        }
-        int type = piece_type(piece);
-        if (type != PAWN && type != KING) {
-            return 1;
-        }
-    }
-    return 0;
+    return board->bitboards[side][KNIGHT] || board->bitboards[side][BISHOP] ||
+           board->bitboards[side][ROOK] || board->bitboards[side][QUEEN];
 }
 
 static int make_null_move(Board *board, NullMoveUndo *undo) {

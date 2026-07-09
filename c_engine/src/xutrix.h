@@ -71,6 +71,9 @@ typedef struct {
 
 typedef struct {
     int8_t squares[BOARD_SQUARES];
+    uint64_t bitboards[2][7];
+    uint64_t occupancy[2];
+    uint64_t occupied;
     int side_to_move;
     uint8_t castling;
     int8_t en_passant;
@@ -101,7 +104,12 @@ void board_clear(Board *board);
 int board_from_fen(Board *board, const char *fen);
 void board_set_startpos(Board *board);
 void board_print(const Board *board);
+void board_refresh_bitboards(Board *board);
 uint64_t board_compute_hash(const Board *board);
+uint64_t board_hash_piece(int piece, int sq);
+uint64_t board_hash_castling(uint8_t castling);
+uint64_t board_hash_en_passant(int8_t en_passant);
+uint64_t board_hash_side_to_move(void);
 
 int is_square_attacked(const Board *board, int sq, int by_side);
 int in_check(const Board *board, int side);

@@ -35,6 +35,29 @@ static int zobrist_piece_index(int piece) {
     }
 }
 
+uint64_t board_hash_piece(int piece, int sq) {
+    int idx = zobrist_piece_index(piece);
+    if (idx < 0 || sq < 0 || sq >= 64) {
+        return 0;
+    }
+    return zobrist_piece[idx][sq];
+}
+
+uint64_t board_hash_castling(uint8_t castling) {
+    return zobrist_castling[castling & 15];
+}
+
+uint64_t board_hash_en_passant(int8_t en_passant) {
+    if (en_passant < 0) {
+        return 0;
+    }
+    return zobrist_ep_file[en_passant % 8];
+}
+
+uint64_t board_hash_side_to_move(void) {
+    return zobrist_black_to_move;
+}
+
 void xutrix_init(void) {
     static int initialized = 0;
     if (initialized) {
@@ -138,21 +161,36 @@ void board_clear(Board *board) {
     board->hash = board_compute_hash(board);
 }
 
+void board_refresh_bitboards(Board *board) {
+    memset(board->bitboards, 0, sizeof(board->bitboards));
+    board->occupancy[WHITE] = 0;
+    board->occupancy[BLACK] = 0;
+    board->occupied = 0;
+
+    for (int sq = 0; sq < 64; ++sq) {
+        int piece = board->squares[sq];
+        if (piece == EMPTY) {
+            continue;
+        }
+        int side = piece_color(piece);
+        int type = piece_type(piece);
+        uint64_t mask = UINT64_C(1) << sq;
+        board->bitboards[side][type] |= mask;
+        board->occupancy[side] |= mask;
+        board->occupied |= mask;
+    }
+}
+
 uint64_t board_compute_hash(const Board *board) {
     uint64_t h = 0;
     for (int sq = 0; sq < 64; ++sq) {
-        int idx = zobrist_piece_index(board->squares[sq]);
-        if (idx >= 0) {
-            h ^= zobrist_piece[idx][sq];
-        }
+        h ^= board_hash_piece(board->squares[sq], sq);
     }
     if (board->side_to_move == BLACK) {
-        h ^= zobrist_black_to_move;
+        h ^= board_hash_side_to_move();
     }
-    h ^= zobrist_castling[board->castling & 15];
-    if (board->en_passant >= 0) {
-        h ^= zobrist_ep_file[board->en_passant % 8];
-    }
+    h ^= board_hash_castling(board->castling);
+    h ^= board_hash_en_passant(board->en_passant);
     return h;
 }
 
@@ -256,6 +294,7 @@ int board_from_fen(Board *board, const char *fen) {
     }
 
     board->ply = 0;
+    board_refresh_bitboards(board);
     board->hash = board_compute_hash(board);
     return 1;
 }
