@@ -62,6 +62,8 @@ typedef struct {
     int lock_tt;
     int stopped;
     int completed_depth;
+    int root_mate_checked;
+    Move root_mate_move;
 #ifdef _WIN32
     volatile LONG *stop;
 #else
@@ -424,6 +426,7 @@ static void search_context_init(SearchContext *ctx, TTBucket *tt, uint64_t mask)
     }
     clear_killers(ctx);
     clear_countermoves(ctx);
+    ctx->root_mate_move = invalid_move();
 }
 
 static int tt_read(SearchContext *ctx, uint64_t hash, TTEntry *out) {
@@ -635,6 +638,29 @@ static int side_relative_eval(const Board *board) {
     return board->side_to_move == WHITE ? eval : -eval;
 }
 
+static int move_delivers_checkmate(Board *board, Move move) {
+    make_move(board, move);
+    int defender = board->side_to_move;
+    int checkmate = 0;
+    if (in_check(board, defender)) {
+        MoveList replies;
+        generate_legal_moves(board, &replies);
+        checkmate = replies.count == 0;
+    }
+    undo_move(board);
+    return checkmate;
+}
+
+static Move find_mate_in_one(Board *board, const MoveList *moves) {
+    for (int i = 0; i < moves->count; ++i) {
+        Move move = moves->moves[i];
+        if (move_delivers_checkmate(board, move)) {
+            return move;
+        }
+    }
+    return invalid_move();
+}
+
 static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, Move tt_move, int ply,
                         Move previous_move) {
     for (int i = 0; i < list->count; ++i) {
@@ -690,7 +716,7 @@ static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, 
     }
 }
 
-static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
+static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta, int ply) {
     if (search_should_stop(ctx)) {
         return 0;
     }
@@ -701,7 +727,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
     if (checked) {
         generate_legal_moves(board, &moves);
         if (moves.count == 0) {
-            return -MATE_SCORE + board->ply;
+            return -MATE_SCORE + ply;
         }
     } else {
         int stand_pat = side_relative_eval(board);
@@ -714,7 +740,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
         generate_legal_noisy_moves(board, &moves);
     }
 
-    score_moves(ctx, board, &moves, invalid_move(), board->ply, invalid_move());
+    score_moves(ctx, board, &moves, invalid_move(), ply, invalid_move());
 
     for (int i = 0; i < moves.count; ++i) {
         Move move = moves.moves[i];
@@ -722,7 +748,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
             continue;
         }
         make_move(board, move);
-        int score = -quiescence(ctx, board, -beta, -alpha);
+        int score = -quiescence(ctx, board, -beta, -alpha, ply + 1);
         undo_move(board);
         if (ctx->stopped) {
             return 0;
@@ -755,7 +781,7 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
     }
 
     if (depth == 0) {
-        return quiescence(ctx, board, alpha, beta);
+        return quiescence(ctx, board, alpha, beta, ply);
     }
 
     MoveList moves;
@@ -990,6 +1016,18 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         return result;
     }
 
+    if (!ctx->root_mate_checked) {
+        ctx->root_mate_move = find_mate_in_one(board, &moves);
+        ctx->root_mate_checked = 1;
+    }
+    if (is_valid_move(ctx->root_mate_move)) {
+        result.best_move = ctx->root_mate_move;
+        result.score = MATE_SCORE - 1;
+        result.nodes = ctx->nodes;
+        tt_store(ctx, board->hash, ctx->root_mate_move, result.score, depth, TT_EXACT);
+        return result;
+    }
+
     Move tt_move = tt_best_move(ctx, board->hash);
 
     score_moves(ctx, board, &moves, tt_move, 0, invalid_move());
@@ -1104,6 +1142,9 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
         previous_score = current.score;
         ctx->completed_depth = depth;
         if (current.best_move.from >= 64) {
+            break;
+        }
+        if (current.score >= MATE_SCORE - 1) {
             break;
         }
     }
