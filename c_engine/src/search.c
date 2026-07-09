@@ -8,11 +8,13 @@
 #include <windows.h>
 #else
 #include <pthread.h>
+#include <stdatomic.h>
 #endif
 
 #define TT_SIZE (1u << 20)
 #define TT_MASK (TT_SIZE - 1)
-#define PARALLEL_TT_SIZE (1u << 16)
+#define TT_LOCK_COUNT (1u << 12)
+#define TT_LOCK_MASK (TT_LOCK_COUNT - 1)
 #define MAX_SEARCH_THREADS 64
 
 #define TT_EMPTY 0
@@ -46,7 +48,14 @@ typedef struct {
     int history_moves[2][64][64];
     TTEntry *tt;
     uint64_t tt_mask;
-    int owns_tt;
+    int worker_id;
+    int lock_tt;
+    int stopped;
+#ifdef _WIN32
+    volatile LONG *stop;
+#else
+    atomic_int *stop;
+#endif
 } SearchContext;
 
 #ifdef _WIN32
@@ -64,6 +73,8 @@ typedef void *XThreadReturn;
 #endif
 
 static TTEntry transposition_table[TT_SIZE];
+static XMutex tt_locks[TT_LOCK_COUNT];
+static int tt_locks_ready;
 
 static int move_equal(Move a, Move b) {
     return a.from == b.from && a.to == b.to && a.promotion == b.promotion && a.flags == b.flags;
@@ -116,14 +127,6 @@ static void xmutex_init(XMutex *mutex) {
 #endif
 }
 
-static void xmutex_destroy(XMutex *mutex) {
-#ifdef _WIN32
-    DeleteCriticalSection(mutex);
-#else
-    pthread_mutex_destroy(mutex);
-#endif
-}
-
 static void xmutex_lock(XMutex *mutex) {
 #ifdef _WIN32
     EnterCriticalSection(mutex);
@@ -138,6 +141,66 @@ static void xmutex_unlock(XMutex *mutex) {
 #else
     pthread_mutex_unlock(mutex);
 #endif
+}
+
+static void tt_locks_init_once(void) {
+    if (tt_locks_ready) {
+        return;
+    }
+    for (uint32_t i = 0; i < TT_LOCK_COUNT; ++i) {
+        xmutex_init(&tt_locks[i]);
+    }
+    tt_locks_ready = 1;
+}
+
+static int context_uses_shared_tt(const SearchContext *ctx) {
+    return ctx && ctx->lock_tt && ctx->tt == transposition_table;
+}
+
+static XMutex *tt_lock_for_hash(uint64_t hash) {
+    return &tt_locks[hash & TT_LOCK_MASK];
+}
+
+static int xatomic_load_stop(
+#ifdef _WIN32
+    volatile LONG *stop
+#else
+    atomic_int *stop
+#endif
+) {
+    if (!stop) {
+        return 0;
+    }
+#ifdef _WIN32
+    return InterlockedCompareExchange(stop, 0, 0) != 0;
+#else
+    return atomic_load_explicit(stop, memory_order_relaxed) != 0;
+#endif
+}
+
+static void xatomic_store_stop(
+#ifdef _WIN32
+    volatile LONG *stop
+#else
+    atomic_int *stop
+#endif
+) {
+    if (!stop) {
+        return;
+    }
+#ifdef _WIN32
+    InterlockedExchange(stop, 1);
+#else
+    atomic_store_explicit(stop, 1, memory_order_relaxed);
+#endif
+}
+
+static int search_should_stop(SearchContext *ctx) {
+    if (ctx && xatomic_load_stop(ctx->stop)) {
+        ctx->stopped = 1;
+        return 1;
+    }
+    return 0;
 }
 
 static int is_tactical_move(Move move) {
@@ -217,32 +280,89 @@ static void search_context_init(SearchContext *ctx, TTEntry *tt, uint64_t tt_mas
     memset(ctx, 0, sizeof(*ctx));
     ctx->tt = tt;
     ctx->tt_mask = tt_mask;
+    if (tt == transposition_table) {
+        tt_locks_init_once();
+    }
     clear_killers(ctx);
 }
 
-static void search_context_init_worker(SearchContext *ctx) {
-    search_context_init(ctx, NULL, 0);
-    ctx->tt = (TTEntry *)calloc(PARALLEL_TT_SIZE, sizeof(TTEntry));
-    if (ctx->tt) {
-        ctx->tt_mask = PARALLEL_TT_SIZE - 1;
-        ctx->owns_tt = 1;
-    }
-}
-
-static void search_context_destroy(SearchContext *ctx) {
-    if (ctx->owns_tt) {
-        free(ctx->tt);
-    }
-    ctx->tt = NULL;
-    ctx->tt_mask = 0;
-    ctx->owns_tt = 0;
-}
-
-static TTEntry *context_tt_entry(SearchContext *ctx, uint64_t hash) {
+static int tt_read(SearchContext *ctx, uint64_t hash, TTEntry *out) {
     if (!ctx->tt) {
-        return NULL;
+        return 0;
     }
-    return &ctx->tt[hash & ctx->tt_mask];
+
+    TTEntry *entry = &ctx->tt[hash & ctx->tt_mask];
+    if (context_uses_shared_tt(ctx)) {
+        XMutex *lock = tt_lock_for_hash(hash);
+        xmutex_lock(lock);
+        *out = *entry;
+        xmutex_unlock(lock);
+    } else {
+        *out = *entry;
+    }
+    return 1;
+}
+
+static void tt_write(SearchContext *ctx, uint64_t hash, const TTEntry *value) {
+    if (!ctx->tt) {
+        return;
+    }
+
+    TTEntry *entry = &ctx->tt[hash & ctx->tt_mask];
+    if (context_uses_shared_tt(ctx)) {
+        XMutex *lock = tt_lock_for_hash(hash);
+        xmutex_lock(lock);
+        *entry = *value;
+        xmutex_unlock(lock);
+    } else {
+        *entry = *value;
+    }
+}
+
+static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, int *beta,
+                    Move *tt_move, int *score) {
+    TTEntry entry;
+    if (!tt_read(ctx, hash, &entry) || entry.flag == TT_EMPTY || entry.key != hash) {
+        return 0;
+    }
+
+    *tt_move = entry.best;
+    if (entry.depth < depth) {
+        return 0;
+    }
+
+    if (entry.flag == TT_EXACT) {
+        *score = entry.score;
+        return 1;
+    }
+    if (entry.flag == TT_LOWER && entry.score > *alpha) {
+        *alpha = entry.score;
+    } else if (entry.flag == TT_UPPER && entry.score < *beta) {
+        *beta = entry.score;
+    }
+    if (*alpha >= *beta) {
+        *score = entry.score;
+        return 1;
+    }
+    return 0;
+}
+
+static Move tt_best_move(SearchContext *ctx, uint64_t hash) {
+    TTEntry entry;
+    if (!tt_read(ctx, hash, &entry) || entry.flag == TT_EMPTY || entry.key != hash) {
+        return invalid_move();
+    }
+    return entry.best;
+}
+
+static void tt_store(SearchContext *ctx, uint64_t hash, Move best_move, int score, int depth, int flag) {
+    TTEntry entry;
+    entry.key = hash;
+    entry.best = best_move;
+    entry.score = score;
+    entry.depth = depth;
+    entry.flag = (uint8_t)flag;
+    tt_write(ctx, hash, &entry);
 }
 
 static void store_killer(SearchContext *ctx, Move move, int ply) {
@@ -269,6 +389,7 @@ static void store_history(SearchContext *ctx, Move move, int side, int depth) {
 }
 
 void tt_clear(void) {
+    tt_locks_init_once();
     memset(transposition_table, 0, sizeof(transposition_table));
 }
 
@@ -313,6 +434,10 @@ static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, 
         if (move->flags & MOVE_CASTLE) {
             score += 1000;
         }
+        if (ctx && ctx->worker_id > 0 && ply == 0 && !move_equal(*move, tt_move)) {
+            int seed = move->from * 67 + move->to * 13 + move->promotion * 31 + ctx->worker_id * 97;
+            score += seed & 2047;
+        }
         move->score = score;
     }
 
@@ -328,6 +453,9 @@ static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, 
 }
 
 static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
+    if (search_should_stop(ctx)) {
+        return 0;
+    }
     ++ctx->nodes;
 
     int checked = in_check(board, board->side_to_move);
@@ -360,6 +488,9 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
         make_move(board, move);
         int score = -quiescence(ctx, board, -beta, -alpha);
         undo_move(board);
+        if (ctx->stopped) {
+            return 0;
+        }
 
         if (score >= beta) {
             return beta;
@@ -373,28 +504,18 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
 }
 
 static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int beta, int ply) {
+    if (search_should_stop(ctx)) {
+        return 0;
+    }
     ++ctx->nodes;
     int alpha_original = alpha;
     Move best_move = invalid_move();
     int checked = in_check(board, board->side_to_move);
 
-    TTEntry *entry = context_tt_entry(ctx, board->hash);
     Move tt_move = invalid_move();
-    if (entry && entry->flag != TT_EMPTY && entry->key == board->hash) {
-        tt_move = entry->best;
-        if (entry->depth >= depth) {
-            if (entry->flag == TT_EXACT) {
-                return entry->score;
-            }
-            if (entry->flag == TT_LOWER && entry->score > alpha) {
-                alpha = entry->score;
-            } else if (entry->flag == TT_UPPER && entry->score < beta) {
-                beta = entry->score;
-            }
-            if (alpha >= beta) {
-                return entry->score;
-            }
-        }
+    int tt_score = 0;
+    if (tt_probe(ctx, board->hash, depth, &alpha, &beta, &tt_move, &tt_score)) {
+        return tt_score;
     }
 
     MoveList moves;
@@ -422,6 +543,9 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
             }
             int score = -negamax(ctx, board, reduced_depth, -beta, -beta + 1, ply + 1);
             undo_null_move(board, &undo);
+            if (ctx->stopped) {
+                return 0;
+            }
             if (score >= beta) {
                 return beta;
             }
@@ -444,6 +568,9 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
             }
         }
         undo_move(board);
+        if (ctx->stopped) {
+            return 0;
+        }
 
         if (score > best_score) {
             best_score = score;
@@ -459,19 +586,13 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         }
     }
 
-    if (entry) {
-        entry->key = board->hash;
-        entry->best = best_move;
-        entry->score = best_score;
-        entry->depth = depth;
-        if (best_score <= alpha_original) {
-            entry->flag = TT_UPPER;
-        } else if (best_score >= beta) {
-            entry->flag = TT_LOWER;
-        } else {
-            entry->flag = TT_EXACT;
-        }
+    int flag = TT_EXACT;
+    if (best_score <= alpha_original) {
+        flag = TT_UPPER;
+    } else if (best_score >= beta) {
+        flag = TT_LOWER;
     }
+    tt_store(ctx, board->hash, best_move, best_score, depth, flag);
 
     return best_score;
 }
@@ -578,6 +699,11 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
     result.score = 0;
     result.nodes = ctx->nodes;
 
+    if (search_should_stop(ctx)) {
+        result.nodes = ctx->nodes;
+        return result;
+    }
+
     if (depth < 1) {
         depth = 1;
     }
@@ -596,11 +722,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         return result;
     }
 
-    Move tt_move = invalid_move();
-    TTEntry *entry = context_tt_entry(ctx, board->hash);
-    if (entry && entry->flag != TT_EMPTY && entry->key == board->hash) {
-        tt_move = entry->best;
-    }
+    Move tt_move = tt_best_move(ctx, board->hash);
 
     score_moves(ctx, board, &moves, tt_move, 0);
 
@@ -619,6 +741,11 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
             }
         }
         undo_move(board);
+        if (ctx->stopped) {
+            result.best_move = invalid_move();
+            result.nodes = ctx->nodes;
+            return result;
+        }
         if (score > best_score) {
             best_score = score;
             result.best_move = move;
@@ -628,213 +755,16 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         }
     }
 
-    if (entry) {
-        entry->key = board->hash;
-        entry->best = result.best_move;
-        entry->score = best_score;
-        entry->depth = depth;
-        if (best_score <= alpha_original) {
-            entry->flag = TT_UPPER;
-        } else if (best_score >= beta) {
-            entry->flag = TT_LOWER;
-        } else {
-            entry->flag = TT_EXACT;
-        }
+    int flag = TT_EXACT;
+    if (best_score <= alpha_original) {
+        flag = TT_UPPER;
+    } else if (best_score >= beta) {
+        flag = TT_LOWER;
     }
+    tt_store(ctx, board->hash, result.best_move, best_score, depth, flag);
 
     result.score = best_score;
     result.nodes = ctx->nodes;
-    return result;
-}
-
-typedef struct {
-    const Board *board;
-    const MoveList *moves;
-    int depth;
-    int beta;
-    int next_index;
-    int alpha;
-    Move best_move;
-    int best_score;
-    XMutex mutex;
-} RootSearchShared;
-
-typedef struct {
-    RootSearchShared *shared;
-    SearchContext ctx;
-} RootSearchWorker;
-
-static XThreadReturn XTHREAD_CALL root_search_worker_main(void *arg) {
-    RootSearchWorker *worker = (RootSearchWorker *)arg;
-    RootSearchShared *shared = worker->shared;
-
-    while (1) {
-        xmutex_lock(&shared->mutex);
-        if (shared->next_index >= shared->moves->count) {
-            xmutex_unlock(&shared->mutex);
-            break;
-        }
-        int move_index = shared->next_index++;
-        int alpha_snapshot = shared->alpha;
-        xmutex_unlock(&shared->mutex);
-
-        Move move = shared->moves->moves[move_index];
-        Board copy = *shared->board;
-        make_move(&copy, move);
-        int score = -negamax(&worker->ctx, &copy, shared->depth - 1, -alpha_snapshot - 1, -alpha_snapshot, 1);
-        if (score > alpha_snapshot && score < shared->beta) {
-            copy = *shared->board;
-            make_move(&copy, move);
-            score = -negamax(&worker->ctx, &copy, shared->depth - 1, -shared->beta, -alpha_snapshot, 1);
-        }
-
-        xmutex_lock(&shared->mutex);
-        if (score > shared->best_score) {
-            shared->best_score = score;
-            shared->best_move = move;
-            if (score > shared->alpha) {
-                shared->alpha = score;
-            }
-        }
-        xmutex_unlock(&shared->mutex);
-    }
-
-    return XTHREAD_RETURN;
-}
-
-static void destroy_root_workers(RootSearchWorker *workers, int count) {
-    if (!workers) {
-        return;
-    }
-    for (int i = 0; i < count; ++i) {
-        search_context_destroy(&workers[i].ctx);
-    }
-}
-
-static SearchResult search_root_parallel(Board *board, int depth, int alpha, int beta, int threads) {
-    SearchResult result;
-    result.best_move = invalid_move();
-    result.score = 0;
-    result.nodes = 0;
-    int alpha_original = alpha;
-
-    if (depth < 1) {
-        depth = 1;
-    }
-
-    MoveList moves;
-    generate_legal_moves(board, &moves);
-    if (moves.count == 0) {
-        result.score = in_check(board, board->side_to_move) ? -MATE_SCORE : 0;
-        return result;
-    }
-
-    threads = normalize_thread_count(threads, moves.count);
-    if (threads <= 1) {
-        SearchContext fallback;
-        search_context_init(&fallback, transposition_table, TT_MASK);
-        return search_root(&fallback, board, depth, alpha, beta, 1);
-    }
-
-    Move tt_move = invalid_move();
-    TTEntry *entry = &transposition_table[board->hash & TT_MASK];
-    if (entry->flag != TT_EMPTY && entry->key == board->hash) {
-        tt_move = entry->best;
-    }
-    score_moves(NULL, board, &moves, tt_move, 0);
-
-    SearchContext first_ctx;
-    search_context_init_worker(&first_ctx);
-    Board first_copy = *board;
-    make_move(&first_copy, moves.moves[0]);
-    int best_score = -negamax(&first_ctx, &first_copy, depth - 1, -beta, -alpha, 1);
-    result.best_move = moves.moves[0];
-    if (best_score > alpha) {
-        alpha = best_score;
-    }
-
-    if (moves.count == 1) {
-        result.score = best_score;
-        result.nodes = first_ctx.nodes;
-        search_context_destroy(&first_ctx);
-        return result;
-    }
-
-    int worker_count = normalize_thread_count(threads, moves.count - 1);
-    XThread *handles = (XThread *)calloc((size_t)worker_count, sizeof(XThread));
-    RootSearchWorker *workers = (RootSearchWorker *)calloc((size_t)worker_count, sizeof(RootSearchWorker));
-    if (!handles || !workers) {
-        free(handles);
-        free(workers);
-        search_context_destroy(&first_ctx);
-        SearchContext fallback;
-        search_context_init(&fallback, transposition_table, TT_MASK);
-        return search_root(&fallback, board, depth, alpha, beta, 1);
-    }
-
-    RootSearchShared shared;
-    shared.board = board;
-    shared.moves = &moves;
-    shared.depth = depth;
-    shared.beta = beta;
-    shared.next_index = 1;
-    shared.alpha = alpha;
-    shared.best_move = result.best_move;
-    shared.best_score = best_score;
-    xmutex_init(&shared.mutex);
-
-    for (int i = 0; i < worker_count; ++i) {
-        search_context_init_worker(&workers[i].ctx);
-        workers[i].shared = &shared;
-    }
-
-    int started = 0;
-    for (int i = 0; i < worker_count; ++i) {
-        if (!xthread_create(&handles[i], root_search_worker_main, &workers[i])) {
-            for (int j = 0; j < started; ++j) {
-                xthread_join(handles[j]);
-            }
-            xmutex_destroy(&shared.mutex);
-            destroy_root_workers(workers, worker_count);
-            free(handles);
-            free(workers);
-            search_context_destroy(&first_ctx);
-            SearchContext fallback;
-            search_context_init(&fallback, transposition_table, TT_MASK);
-            return search_root(&fallback, board, depth, alpha, beta, 1);
-        }
-        ++started;
-    }
-
-    uint64_t nodes = first_ctx.nodes;
-    for (int i = 0; i < worker_count; ++i) {
-        xthread_join(handles[i]);
-        nodes += workers[i].ctx.nodes;
-    }
-
-    best_score = shared.best_score;
-    result.best_move = shared.best_move;
-
-    entry->key = board->hash;
-    entry->best = result.best_move;
-    entry->score = best_score;
-    entry->depth = depth;
-    if (best_score <= alpha_original) {
-        entry->flag = TT_UPPER;
-    } else if (best_score >= beta) {
-        entry->flag = TT_LOWER;
-    } else {
-        entry->flag = TT_EXACT;
-    }
-
-    result.score = best_score;
-    result.nodes = nodes;
-
-    xmutex_destroy(&shared.mutex);
-    search_context_destroy(&first_ctx);
-    destroy_root_workers(workers, worker_count);
-    free(handles);
-    free(workers);
     return result;
 }
 
@@ -844,132 +774,174 @@ SearchResult search_best_move(Board *board, int depth) {
     return search_root(&ctx, board, depth, -INF_SCORE, INF_SCORE, 1);
 }
 
-SearchResult search_best_move_parallel(Board *board, int depth, int threads) {
-    if (threads <= 1) {
-        return search_best_move(board, depth);
+static SearchResult search_iterative_with_context(SearchContext *ctx, Board *board, int max_depth) {
+    SearchResult final_result;
+    final_result.best_move = invalid_move();
+    final_result.score = 0;
+    final_result.nodes = 0;
+
+    if (max_depth < 1) {
+        max_depth = 1;
     }
-    return search_root_parallel(board, depth, -INF_SCORE, INF_SCORE, threads);
+
+    uint64_t total_nodes = 0;
+    int previous_score = 0;
+    clear_history(ctx);
+    clear_killers(ctx);
+
+    for (int depth = 1; depth <= max_depth; ++depth) {
+        int alpha = -INF_SCORE;
+        int beta = INF_SCORE;
+        int window = 50;
+        int attempts = 0;
+        SearchResult current = final_result;
+
+        if (depth > 1) {
+            alpha = previous_score - window;
+            beta = previous_score + window;
+        }
+
+        while (1) {
+            ctx->nodes = 0;
+            current = search_root(ctx, board, depth, alpha, beta, 0);
+            total_nodes += current.nodes;
+            if (ctx->stopped) {
+                final_result.best_move = invalid_move();
+                final_result.nodes = total_nodes;
+                return final_result;
+            }
+
+            if (depth == 1 || (current.score > alpha && current.score < beta)) {
+                break;
+            }
+
+            ++attempts;
+            if (attempts >= 4) {
+                alpha = -INF_SCORE;
+                beta = INF_SCORE;
+            } else if (current.score <= alpha) {
+                alpha -= window;
+                window *= 2;
+            } else {
+                beta += window;
+                window *= 2;
+            }
+        }
+
+        final_result = current;
+        final_result.nodes = total_nodes;
+        previous_score = current.score;
+        if (current.best_move.from >= 64) {
+            break;
+        }
+    }
+
+    return final_result;
 }
 
 SearchResult search_iterative(Board *board, int max_depth) {
-    SearchResult final_result;
-    final_result.best_move = invalid_move();
-    final_result.score = 0;
-    final_result.nodes = 0;
-
-    if (max_depth < 1) {
-        max_depth = 1;
-    }
-
-    uint64_t total_nodes = 0;
-    int previous_score = 0;
     SearchContext ctx;
     search_context_init(&ctx, transposition_table, TT_MASK);
-    clear_history(&ctx);
-    clear_killers(&ctx);
+    return search_iterative_with_context(&ctx, board, max_depth);
+}
 
-    for (int depth = 1; depth <= max_depth; ++depth) {
-        int alpha = -INF_SCORE;
-        int beta = INF_SCORE;
-        int window = 50;
-        int attempts = 0;
-        SearchResult current = final_result;
+typedef struct {
+    const Board *board;
+    int max_depth;
+    int worker_id;
+#ifdef _WIN32
+    volatile LONG *stop;
+#else
+    atomic_int *stop;
+#endif
+    SearchContext ctx;
+    SearchResult result;
+    int completed;
+} LazySmpWorker;
 
-        if (depth > 1) {
-            alpha = previous_score - window;
-            beta = previous_score + window;
-        }
-
-        while (1) {
-            ctx.nodes = 0;
-            current = search_root(&ctx, board, depth, alpha, beta, 0);
-            total_nodes += current.nodes;
-
-            if (depth == 1 || (current.score > alpha && current.score < beta)) {
-                break;
-            }
-
-            ++attempts;
-            if (attempts >= 4) {
-                alpha = -INF_SCORE;
-                beta = INF_SCORE;
-            } else if (current.score <= alpha) {
-                alpha -= window;
-                window *= 2;
-            } else {
-                beta += window;
-                window *= 2;
-            }
-        }
-
-        final_result = current;
-        final_result.nodes = total_nodes;
-        previous_score = current.score;
-        if (current.best_move.from >= 64) {
-            break;
-        }
+static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
+    LazySmpWorker *worker = (LazySmpWorker *)arg;
+    Board board = *worker->board;
+    search_context_init(&worker->ctx, transposition_table, TT_MASK);
+    worker->ctx.worker_id = worker->worker_id;
+    worker->ctx.lock_tt = 1;
+    worker->ctx.stop = worker->stop;
+    worker->result = search_iterative_with_context(&worker->ctx, &board, worker->max_depth);
+    if (!worker->ctx.stopped && worker->result.best_move.from < 64) {
+        worker->completed = 1;
+        xatomic_store_stop(worker->stop);
     }
-
-    return final_result;
+    return XTHREAD_RETURN;
 }
 
 SearchResult search_iterative_parallel(Board *board, int max_depth, int threads) {
-    if (threads <= 1) {
+    MoveList moves;
+    generate_legal_moves(board, &moves);
+    threads = normalize_thread_count(threads, moves.count);
+    if (threads <= 1 || moves.count <= 1) {
         return search_iterative(board, max_depth);
     }
 
-    SearchResult final_result;
-    final_result.best_move = invalid_move();
-    final_result.score = 0;
-    final_result.nodes = 0;
+    tt_locks_init_once();
 
-    if (max_depth < 1) {
-        max_depth = 1;
+    XThread *handles = (XThread *)calloc((size_t)threads, sizeof(XThread));
+    LazySmpWorker *workers = (LazySmpWorker *)calloc((size_t)threads, sizeof(LazySmpWorker));
+    if (!handles || !workers) {
+        free(handles);
+        free(workers);
+        return search_iterative(board, max_depth);
     }
 
-    uint64_t total_nodes = 0;
-    int previous_score = 0;
+#ifdef _WIN32
+    volatile LONG stop = 0;
+#else
+    atomic_int stop;
+    atomic_init(&stop, 0);
+#endif
 
-    for (int depth = 1; depth <= max_depth; ++depth) {
-        int alpha = -INF_SCORE;
-        int beta = INF_SCORE;
-        int window = 50;
-        int attempts = 0;
-        SearchResult current = final_result;
-
-        if (depth > 1) {
-            alpha = previous_score - window;
-            beta = previous_score + window;
-        }
-
-        while (1) {
-            current = search_root_parallel(board, depth, alpha, beta, threads);
-            total_nodes += current.nodes;
-
-            if (depth == 1 || (current.score > alpha && current.score < beta)) {
-                break;
+    int started = 0;
+    for (int i = 0; i < threads; ++i) {
+        workers[i].board = board;
+        workers[i].max_depth = max_depth;
+        workers[i].worker_id = i;
+        workers[i].stop = &stop;
+        workers[i].result.best_move = invalid_move();
+        if (!xthread_create(&handles[i], lazy_smp_worker_main, &workers[i])) {
+            xatomic_store_stop(&stop);
+            for (int j = 0; j < started; ++j) {
+                xthread_join(handles[j]);
             }
-
-            ++attempts;
-            if (attempts >= 4) {
-                alpha = -INF_SCORE;
-                beta = INF_SCORE;
-            } else if (current.score <= alpha) {
-                alpha -= window;
-                window *= 2;
-            } else {
-                beta += window;
-                window *= 2;
-            }
+            free(handles);
+            free(workers);
+            return search_iterative(board, max_depth);
         }
+        ++started;
+    }
 
-        final_result = current;
-        final_result.nodes = total_nodes;
-        previous_score = current.score;
-        if (current.best_move.from >= 64) {
-            break;
+    SearchResult best;
+    best.best_move = invalid_move();
+    best.score = -INF_SCORE;
+    best.nodes = 0;
+
+    for (int i = 0; i < threads; ++i) {
+        xthread_join(handles[i]);
+        best.nodes += workers[i].result.nodes;
+        if (workers[i].completed && workers[i].result.best_move.from < 64 &&
+            (best.best_move.from >= 64 || workers[i].result.score > best.score)) {
+            best.best_move = workers[i].result.best_move;
+            best.score = workers[i].result.score;
         }
     }
 
-    return final_result;
+    free(handles);
+    free(workers);
+
+    if (best.best_move.from >= 64) {
+        return search_iterative(board, max_depth);
+    }
+    return best;
+}
+
+SearchResult search_best_move_parallel(Board *board, int depth, int threads) {
+    return search_iterative_parallel(board, depth, threads);
 }
