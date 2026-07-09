@@ -1144,6 +1144,9 @@ static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
     worker->completed_depth = worker->ctx.completed_depth;
     worker->completed = !worker->ctx.stopped && worker->completed_depth >= worker->max_depth &&
                         worker->result.best_move.from < 64;
+    if (worker->completed) {
+        xatomic_store_stop(worker->stop);
+    }
     return XTHREAD_RETURN;
 }
 
