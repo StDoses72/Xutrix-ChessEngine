@@ -52,6 +52,7 @@ typedef struct {
 typedef struct {
     uint64_t nodes;
     Move killer_moves[MAX_PLY][2];
+    Move counter_moves[2][7][64];
     int history_moves[2][64][64];
     TTBucket *tt;
     uint64_t tt_mask;
@@ -373,6 +374,17 @@ static void clear_history(SearchContext *ctx) {
     memset(ctx->history_moves, 0, sizeof(ctx->history_moves));
 }
 
+static void clear_countermoves(SearchContext *ctx) {
+    Move invalid = invalid_move();
+    for (int side = WHITE; side <= BLACK; ++side) {
+        for (int piece = PAWN; piece <= KING; ++piece) {
+            for (int to = 0; to < 64; ++to) {
+                ctx->counter_moves[side][piece][to] = invalid;
+            }
+        }
+    }
+}
+
 static void search_context_init(SearchContext *ctx, TTBucket *tt, uint64_t mask) {
     memset(ctx, 0, sizeof(*ctx));
     ctx->tt = tt;
@@ -381,6 +393,7 @@ static void search_context_init(SearchContext *ctx, TTBucket *tt, uint64_t mask)
         tt_locks_init_once();
     }
     clear_killers(ctx);
+    clear_countermoves(ctx);
 }
 
 static int tt_read(SearchContext *ctx, uint64_t hash, TTEntry *out) {
@@ -538,10 +551,39 @@ static void store_history(SearchContext *ctx, Move move, int side, int depth) {
     }
     int bonus = depth * depth;
     int *entry = &ctx->history_moves[side][move.from][move.to];
-    *entry += bonus;
+    if (*entry + bonus > HISTORY_MAX) {
+        int abs_bonus = bonus < 0 ? -bonus : bonus;
+        *entry += bonus - (int)(((long long)*entry * abs_bonus) / HISTORY_MAX);
+    } else {
+        *entry += bonus;
+    }
     if (*entry > HISTORY_MAX) {
         *entry = HISTORY_MAX;
+    } else if (*entry < -HISTORY_MAX) {
+        *entry = -HISTORY_MAX;
     }
+}
+
+static int counter_key_piece(const Board *board, Move previous_move) {
+    if (!is_valid_move(previous_move)) {
+        return EMPTY;
+    }
+    int piece = board->squares[previous_move.to];
+    if (piece == EMPTY || piece_color(piece) == board->side_to_move) {
+        return EMPTY;
+    }
+    return piece_type(piece);
+}
+
+static void store_countermove(SearchContext *ctx, const Board *board, Move previous_move, Move move, int side) {
+    if (!ctx || side < WHITE || side > BLACK || is_tactical_move(move)) {
+        return;
+    }
+    int previous_piece = counter_key_piece(board, previous_move);
+    if (previous_piece == EMPTY) {
+        return;
+    }
+    ctx->counter_moves[side][previous_piece][previous_move.to] = move;
 }
 
 void tt_clear(void) {
@@ -563,7 +605,8 @@ static int side_relative_eval(const Board *board) {
     return board->side_to_move == WHITE ? eval : -eval;
 }
 
-static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, Move tt_move, int ply) {
+static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, Move tt_move, int ply,
+                        Move previous_move) {
     for (int i = 0; i < list->count; ++i) {
         Move *move = &list->moves[i];
         int score = 0;
@@ -582,14 +625,19 @@ static void score_moves(SearchContext *ctx, const Board *board, MoveList *list, 
             score += 80000 + piece_value(move->promotion);
         }
         if (!is_tactical_move(*move) && ply >= 0 && ply < MAX_PLY) {
+            int history = ctx ? ctx->history_moves[board->side_to_move][move->from][move->to] : 0;
             if (ctx && move_equal(*move, ctx->killer_moves[ply][0])) {
                 score += 90000;
             } else if (ctx && move_equal(*move, ctx->killer_moves[ply][1])) {
                 score += 80000;
+            } else if (ctx) {
+                int previous_piece = counter_key_piece(board, previous_move);
+                if (ply <= 2 && history > 0 && previous_piece != EMPTY &&
+                    move_equal(*move, ctx->counter_moves[board->side_to_move][previous_piece][previous_move.to])) {
+                    score += 1;
+                }
             }
-            if (ctx) {
-                score += ctx->history_moves[board->side_to_move][move->from][move->to];
-            }
+            score += history;
         }
         if (move->flags & MOVE_CASTLE) {
             score += 1000;
@@ -636,7 +684,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
         generate_legal_noisy_moves(board, &moves);
     }
 
-    score_moves(ctx, board, &moves, invalid_move(), board->ply);
+    score_moves(ctx, board, &moves, invalid_move(), board->ply, invalid_move());
 
     for (int i = 0; i < moves.count; ++i) {
         Move move = moves.moves[i];
@@ -661,7 +709,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta) {
     return alpha;
 }
 
-static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int beta, int ply) {
+static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int beta, int ply, Move previous_move) {
     if (search_should_stop(ctx)) {
         return 0;
     }
@@ -676,6 +724,10 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         return tt_score;
     }
 
+    if (depth == 0) {
+        return quiescence(ctx, board, alpha, beta);
+    }
+
     MoveList moves;
     generate_legal_moves(board, &moves);
 
@@ -684,10 +736,6 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
             return -MATE_SCORE + ply;
         }
         return 0;
-    }
-
-    if (depth == 0) {
-        return quiescence(ctx, board, alpha, beta);
     }
 
     if (depth >= NULL_MOVE_MIN_DEPTH && !checked && !is_mate_window(alpha, beta) &&
@@ -699,7 +747,7 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
             if (reduced_depth < 0) {
                 reduced_depth = 0;
             }
-            int score = -negamax(ctx, board, reduced_depth, -beta, -beta + 1, ply + 1);
+            int score = -negamax(ctx, board, reduced_depth, -beta, -beta + 1, ply + 1, invalid_move());
             undo_null_move(board, &undo);
             if (ctx->stopped) {
                 return 0;
@@ -710,7 +758,7 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         }
     }
 
-    score_moves(ctx, board, &moves, tt_move, ply);
+    score_moves(ctx, board, &moves, tt_move, ply, previous_move);
 
     int best_score = -INF_SCORE;
     for (int i = 0; i < moves.count; ++i) {
@@ -718,11 +766,11 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         make_move(board, move);
         int score;
         if (i == 0) {
-            score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1);
+            score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1, move);
         } else {
-            score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, ply + 1);
+            score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, ply + 1, move);
             if (score > alpha && score < beta) {
-                score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1);
+                score = -negamax(ctx, board, depth - 1, -beta, -alpha, ply + 1, move);
             }
         }
         undo_move(board);
@@ -740,6 +788,7 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         if (alpha >= beta) {
             store_killer(ctx, move, ply);
             store_history(ctx, move, board->side_to_move, depth);
+            store_countermove(ctx, board, previous_move, move, board->side_to_move);
             break;
         }
     }
@@ -889,6 +938,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
     if (reset_heuristics) {
         clear_history(ctx);
         clear_killers(ctx);
+        clear_countermoves(ctx);
     }
 
     int alpha_original = alpha;
@@ -902,7 +952,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
 
     Move tt_move = tt_best_move(ctx, board->hash);
 
-    score_moves(ctx, board, &moves, tt_move, 0);
+    score_moves(ctx, board, &moves, tt_move, 0, invalid_move());
 
     int best_score = -INF_SCORE;
 
@@ -911,11 +961,11 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         make_move(board, move);
         int score;
         if (i == 0) {
-            score = -negamax(ctx, board, depth - 1, -beta, -alpha, 1);
+            score = -negamax(ctx, board, depth - 1, -beta, -alpha, 1, move);
         } else {
-            score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, 1);
+            score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, 1, move);
             if (score > alpha && score < beta) {
-                score = -negamax(ctx, board, depth - 1, -beta, -alpha, 1);
+                score = -negamax(ctx, board, depth - 1, -beta, -alpha, 1, move);
             }
         }
         undo_move(board);
@@ -967,6 +1017,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
     int previous_score = 0;
     clear_history(ctx);
     clear_killers(ctx);
+    clear_countermoves(ctx);
 
     for (int depth = 1; depth <= max_depth; ++depth) {
         int alpha = -INF_SCORE;
