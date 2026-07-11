@@ -30,4 +30,6 @@ powershell -ExecutionPolicy Bypass -File .\bot\run.ps1
 ```
 
 The default config accepts only standard casual challenges, runs one game at a
-time, and searches with Xutrix at depth 12 using 16 threads.
+time, and lets Xutrix search up to depth 13 under Lichess clock control using
+16 threads. The engine's built-in opening book is enabled by default through
+the UCI `OwnBook` / `BookMaxPly` options.

@@ -14,6 +14,7 @@ Use --include-meta if you want trace fields such as source, ply, and label depth
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import shutil
@@ -104,6 +105,7 @@ def make_output_record(
     include_meta: bool,
     depth: int | None,
     movetime_ms: int | None,
+    analysis_timeout_sec: float | None,
 ) -> dict[str, Any]:
     out = {
         "fen": source_record["fen"],
@@ -119,6 +121,7 @@ def make_output_record(
                 "labeler": "stockfish",
                 "depth": depth,
                 "movetime_ms": movetime_ms,
+                "analysis_timeout_sec": analysis_timeout_sec,
             }
         )
     return out
@@ -138,6 +141,7 @@ def label_positions(
     hash_mb: int | None,
     max_positions: int | None,
     resume: bool,
+    analysis_timeout_sec: float | None,
 ) -> tuple[int, int, int]:
     if depth is None and movetime_ms is None:
         depth = 10
@@ -152,7 +156,11 @@ def label_positions(
 
     limit = chess.engine.Limit(
         depth=depth,
-        time=(movetime_ms / 1000.0 if movetime_ms is not None else None),
+        time=(
+            movetime_ms / 1000.0
+            if movetime_ms is not None
+            else analysis_timeout_sec
+        ),
     )
 
     with chess.engine.SimpleEngine.popen_uci(stockfish_path) as engine, positions_path.open(
@@ -188,7 +196,11 @@ def label_positions(
                 skipped += 1
                 continue
 
-            info = engine.analyse(board, limit)
+            try:
+                info = engine.analyse(board, limit)
+            except (asyncio.TimeoutError, TimeoutError, chess.engine.EngineError):
+                skipped += 1
+                continue
             pov_score = info.get("score")
             if not isinstance(pov_score, chess.engine.PovScore):
                 skipped += 1
@@ -205,6 +217,7 @@ def label_positions(
                 include_meta=include_meta,
                 depth=depth,
                 movetime_ms=movetime_ms,
+                analysis_timeout_sec=analysis_timeout_sec,
             )
             output.write(json.dumps(output_record, ensure_ascii=False) + "\n")
             written += 1
@@ -232,6 +245,11 @@ def main() -> None:
     parser.add_argument("--threads", type=int, help="Stockfish Threads option")
     parser.add_argument("--hash-mb", type=int, help="Stockfish Hash option in MB")
     parser.add_argument("--max-positions", type=int, help="Stop after writing this many labels")
+    parser.add_argument(
+        "--analysis-timeout-sec",
+        type=float,
+        help="Also cap each depth search with a Stockfish movetime in seconds",
+    )
     parser.add_argument("--no-resume", action="store_true", help="Overwrite output instead of appending missing FENs")
     args = parser.parse_args()
 
@@ -251,6 +269,7 @@ def main() -> None:
         hash_mb=args.hash_mb,
         max_positions=args.max_positions,
         resume=not args.no_resume,
+        analysis_timeout_sec=args.analysis_timeout_sec,
     )
 
     print(f"stockfish: {stockfish_path}")

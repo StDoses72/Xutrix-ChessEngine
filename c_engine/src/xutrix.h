@@ -88,6 +88,7 @@ typedef struct {
     Move best_move;
     int score;
     uint64_t nodes;
+    int depth;
 } SearchResult;
 
 void xutrix_init(void);
@@ -128,6 +129,8 @@ int see_move(const Board *board, Move move);
 int evaluate_board(const Board *board);
 int evaluate_classic_board(const Board *board);
 
+int opening_book_pick_move(Board *board, int max_ply, Move *move);
+
 void tt_clear(void);
 int tt_resize_mb(int mb);
 int tt_hash_mb(void);
@@ -137,6 +140,8 @@ uint64_t perft_parallel(Board *board, int depth, int threads);
 SearchResult search_best_move(Board *board, int depth);
 SearchResult search_best_move_parallel(Board *board, int depth, int threads);
 SearchResult search_iterative(Board *board, int max_depth);
+SearchResult search_iterative_timed(Board *board, int max_depth, int time_ms);
 SearchResult search_iterative_parallel(Board *board, int max_depth, int threads);
+SearchResult search_iterative_parallel_timed(Board *board, int max_depth, int threads, int time_ms);
 
 #endif

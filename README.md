@@ -108,6 +108,23 @@ $env:XUTRIX_NNUE = "$PWD\weights\smoke.nnue"
 
 The smoke network is only for testing the loader. It is not trained.
 
+Train and export a starter NNUE from labeled JSONL:
+
+```powershell
+python .\tools\train_nnue.py `
+  --input .\data\labeled\hikaru_2025_labeled_d8_5k.jsonl `
+  --out .\weights\hikaru_d8_5k_h64.nnue `
+  --hidden 64 `
+  --epochs 40
+
+$env:XUTRIX_NNUE = "$PWD\weights\hikaru_d8_5k_h64.nnue"
+.\xutrix.exe eval
+```
+
+This 5k starter network is useful for validating the pipeline, but it is not a
+production playing-strength net yet. Keep the classical evaluator active for
+matches unless a trained NNUE passes tactical and gauntlet regression.
+
 ## Training Data
 
 The current data pipeline is:

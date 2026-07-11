@@ -9,6 +9,7 @@
 #else
 #include <pthread.h>
 #include <stdatomic.h>
+#include <sys/time.h>
 #endif
 
 #define TT_BUCKET_SIZE 4
@@ -28,6 +29,7 @@
 #define NULL_MOVE_REDUCTION 2
 #define LMR_MIN_DEPTH 3
 #define LMR_MIN_MOVE_INDEX 3
+#define TIME_CHECK_INTERVAL 2048
 
 typedef struct {
     uint64_t key;
@@ -63,6 +65,8 @@ typedef struct {
     int stopped;
     int completed_depth;
     int root_mate_checked;
+    uint64_t deadline_ms;
+    uint32_t time_check_counter;
     Move root_mate_move;
 #ifdef _WIN32
     volatile LONG *stop;
@@ -273,6 +277,23 @@ static XMutex *tt_lock_for_hash(uint64_t hash) {
     return &tt_locks[hash & TT_LOCK_MASK];
 }
 
+static uint64_t wall_time_ms(void) {
+#ifdef _WIN32
+    return GetTickCount64();
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000u + (uint64_t)tv.tv_usec / 1000u;
+#endif
+}
+
+static uint64_t deadline_from_time_ms(int time_ms) {
+    if (time_ms <= 0) {
+        return 0;
+    }
+    return wall_time_ms() + (uint64_t)time_ms;
+}
+
 static int xatomic_load_stop(
 #ifdef _WIN32
     volatile LONG *stop
@@ -308,8 +329,18 @@ static void xatomic_store_stop(
 }
 
 static int search_should_stop(SearchContext *ctx) {
-    if (ctx && xatomic_load_stop(ctx->stop)) {
+    if (!ctx) {
+        return 0;
+    }
+    if (xatomic_load_stop(ctx->stop)) {
         ctx->stopped = 1;
+        return 1;
+    }
+    if (ctx->deadline_ms != 0 &&
+        (ctx->time_check_counter++ & (TIME_CHECK_INTERVAL - 1)) == 0 &&
+        wall_time_ms() >= ctx->deadline_ms) {
+        ctx->stopped = 1;
+        xatomic_store_stop(ctx->stop);
         return 1;
     }
     return 0;
@@ -636,6 +667,22 @@ static int piece_value(int piece) {
 static int side_relative_eval(const Board *board) {
     int eval = evaluate_board(board);
     return board->side_to_move == WHITE ? eval : -eval;
+}
+
+static SearchResult fallback_search_result(Board *board) {
+    SearchResult result;
+    result.best_move = invalid_move();
+    result.score = 0;
+    result.nodes = 0;
+    result.depth = 0;
+
+    MoveList moves;
+    generate_legal_moves(board, &moves);
+    if (moves.count > 0) {
+        result.best_move = moves.moves[0];
+        result.score = side_relative_eval(board);
+    }
+    return result;
 }
 
 static int move_delivers_checkmate(Board *board, Move move) {
@@ -991,6 +1038,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
     result.best_move = invalid_move();
     result.score = 0;
     result.nodes = ctx->nodes;
+    result.depth = 0;
 
     if (search_should_stop(ctx)) {
         result.nodes = ctx->nodes;
@@ -1013,6 +1061,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
     if (moves.count == 0) {
         result.score = in_check(board, board->side_to_move) ? -MATE_SCORE : 0;
         result.nodes = ctx->nodes;
+        result.depth = depth;
         return result;
     }
 
@@ -1024,6 +1073,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         result.best_move = ctx->root_mate_move;
         result.score = MATE_SCORE - 1;
         result.nodes = ctx->nodes;
+        result.depth = depth;
         tt_store(ctx, board->hash, ctx->root_mate_move, result.score, depth, TT_EXACT);
         return result;
     }
@@ -1050,6 +1100,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         if (ctx->stopped) {
             result.best_move = invalid_move();
             result.nodes = ctx->nodes;
+            result.depth = 0;
             return result;
         }
         if (score > best_score) {
@@ -1071,6 +1122,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
 
     result.score = best_score;
     result.nodes = ctx->nodes;
+    result.depth = depth;
     return result;
 }
 
@@ -1082,10 +1134,7 @@ SearchResult search_best_move(Board *board, int depth) {
 }
 
 static SearchResult search_iterative_with_context(SearchContext *ctx, Board *board, int max_depth) {
-    SearchResult final_result;
-    final_result.best_move = invalid_move();
-    final_result.score = 0;
-    final_result.nodes = 0;
+    SearchResult final_result = fallback_search_result(board);
     ctx->completed_depth = 0;
 
     if (max_depth < 1) {
@@ -1115,7 +1164,6 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
             current = search_root(ctx, board, depth, alpha, beta, 0);
             total_nodes += current.nodes;
             if (ctx->stopped) {
-                final_result.best_move = invalid_move();
                 final_result.nodes = total_nodes;
                 return final_result;
             }
@@ -1140,7 +1188,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
         final_result = current;
         final_result.nodes = total_nodes;
         previous_score = current.score;
-        ctx->completed_depth = depth;
+        ctx->completed_depth = current.depth;
         if (current.best_move.from >= 64) {
             break;
         }
@@ -1159,10 +1207,19 @@ SearchResult search_iterative(Board *board, int max_depth) {
     return search_iterative_with_context(&ctx, board, max_depth);
 }
 
+SearchResult search_iterative_timed(Board *board, int max_depth, int time_ms) {
+    SearchContext ctx;
+    tt_start_search();
+    search_context_init(&ctx, tt_shared_table(), tt_shared_mask());
+    ctx.deadline_ms = deadline_from_time_ms(time_ms);
+    return search_iterative_with_context(&ctx, board, max_depth);
+}
+
 typedef struct {
     const Board *board;
     int max_depth;
     int worker_id;
+    uint64_t deadline_ms;
 #ifdef _WIN32
     volatile LONG *stop;
 #else
@@ -1181,6 +1238,7 @@ static XThreadReturn XTHREAD_CALL lazy_smp_worker_main(void *arg) {
     worker->ctx.worker_id = worker->worker_id;
     worker->ctx.lock_tt = 1;
     worker->ctx.stop = worker->stop;
+    worker->ctx.deadline_ms = worker->deadline_ms;
     worker->result = search_iterative_with_context(&worker->ctx, &board, worker->max_depth);
     worker->completed_depth = worker->ctx.completed_depth;
     worker->completed = !worker->ctx.stopped && worker->completed_depth >= worker->max_depth &&
@@ -1220,12 +1278,12 @@ static int lazy_smp_worker_is_better(const LazySmpWorker *candidate, const LazyS
     return candidate->result.score > current->result.score;
 }
 
-SearchResult search_iterative_parallel(Board *board, int max_depth, int threads) {
+static SearchResult search_iterative_parallel_with_limit(Board *board, int max_depth, int threads, int time_ms) {
     MoveList moves;
     generate_legal_moves(board, &moves);
     threads = normalize_thread_count(threads, moves.count);
     if (threads <= 1 || moves.count <= 1) {
-        return search_iterative(board, max_depth);
+        return time_ms > 0 ? search_iterative_timed(board, max_depth, time_ms) : search_iterative(board, max_depth);
     }
 
     tt_start_search();
@@ -1236,8 +1294,10 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
     if (!handles || !workers) {
         free(handles);
         free(workers);
-        return search_iterative(board, max_depth);
+        return time_ms > 0 ? search_iterative_timed(board, max_depth, time_ms) : search_iterative(board, max_depth);
     }
+
+    uint64_t deadline_ms = deadline_from_time_ms(time_ms);
 
 #ifdef _WIN32
     volatile LONG stop = 0;
@@ -1251,8 +1311,12 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
         workers[i].board = board;
         workers[i].max_depth = max_depth;
         workers[i].worker_id = i;
+        workers[i].deadline_ms = deadline_ms;
         workers[i].stop = &stop;
         workers[i].result.best_move = invalid_move();
+        workers[i].result.score = 0;
+        workers[i].result.nodes = 0;
+        workers[i].result.depth = 0;
         if (!xthread_create(&handles[i], lazy_smp_worker_main, &workers[i])) {
             xatomic_store_stop(&stop);
             for (int j = 0; j < started; ++j) {
@@ -1260,7 +1324,7 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
             }
             free(handles);
             free(workers);
-            return search_iterative(board, max_depth);
+            return time_ms > 0 ? search_iterative_timed(board, max_depth, time_ms) : search_iterative(board, max_depth);
         }
         ++started;
     }
@@ -1269,6 +1333,7 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
     best.best_move = invalid_move();
     best.score = -INF_SCORE;
     best.nodes = 0;
+    best.depth = 0;
     int best_worker = -1;
     uint64_t total_nodes = 0;
 
@@ -1291,7 +1356,15 @@ SearchResult search_iterative_parallel(Board *board, int max_depth, int threads)
 
     free(handles);
     free(workers);
-    return search_iterative(board, max_depth);
+    return fallback_search_result(board);
+}
+
+SearchResult search_iterative_parallel(Board *board, int max_depth, int threads) {
+    return search_iterative_parallel_with_limit(board, max_depth, threads, 0);
+}
+
+SearchResult search_iterative_parallel_timed(Board *board, int max_depth, int threads, int time_ms) {
+    return search_iterative_parallel_with_limit(board, max_depth, threads, time_ms);
 }
 
 SearchResult search_best_move_parallel(Board *board, int depth, int threads) {

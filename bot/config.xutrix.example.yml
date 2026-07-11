@@ -46,8 +46,10 @@ engine:
   uci_options:
     Threads: 16
     Hash: 512
+    OwnBook: true
+    BookMaxPly: 18
     go_commands:
-      depth: 12
+      depth: 13
 
   silence_stderr: false
 
@@ -103,7 +105,7 @@ matchmaking:
   allow_matchmaking: true
   allow_during_games: false
   challenge_variant: "standard"
-  challenge_timeout: 30
+  challenge_timeout: 15
   challenge_initial_time:
     - 180
   challenge_increment:

@@ -142,10 +142,7 @@ int nnue_evaluate_board(const Board *board) {
         return evaluate_classic_board(board);
     }
 
-    int32_t *accumulator = (int32_t *)malloc((size_t)net.hidden * sizeof(int32_t));
-    if (!accumulator) {
-        return evaluate_classic_board(board);
-    }
+    int32_t accumulator[NNUE_MAX_HIDDEN];
 
     for (int i = 0; i < net.hidden; ++i) {
         accumulator[i] = net.hidden_bias[i];
@@ -167,7 +164,6 @@ int nnue_evaluate_board(const Board *board) {
     for (int i = 0; i < net.hidden; ++i) {
         output += clipped_relu(accumulator[i]) * net.output_weights[i];
     }
-    free(accumulator);
 
     return (int)(output / net.scale);
 }

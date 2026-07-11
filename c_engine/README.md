@@ -55,9 +55,26 @@ Commands also accept a FEN after the depth:
 - Zobrist hash and transposition table.
 - Negamax alpha-beta search with quiescence.
 - Root-node parallel perft and root-node parallel iterative search.
+- UCI clock-based time management.
+- Built-in UCI opening book with `OwnBook` and `BookMaxPly` options.
 - Material + piece-square evaluation.
 - Optional NNUE inference path loaded from `XUTRIX_NNUE`.
 - Perft and basic UCI support for validation.
+
+## Opening Book
+
+UCI mode uses a small built-in opening repertoire by default. It only applies
+while the current move history matches one of the embedded lines, and every book
+move is still checked against legal move generation before it is played.
+
+Relevant UCI options:
+
+```text
+setoption name OwnBook value true
+setoption name BookMaxPly value 18
+```
+
+Set `OwnBook` to `false` or `BookMaxPly` to `0` to force search from move one.
 
 ## NNUE Weights
 
@@ -73,6 +90,26 @@ $env:XUTRIX_NNUE = "$PWD\weights\smoke.nnue"
 ```
 
 This smoke network is not trained and should not be used for playing strength.
+
+Train and export a starter network from labeled JSONL:
+
+```powershell
+python .\tools\train_nnue.py `
+  --input .\data\labeled\hikaru_2025_labeled_d8_5k.jsonl `
+  --out .\weights\hikaru_d8_5k_h64.nnue `
+  --hidden 64 `
+  --epochs 40
+```
+
+Then load it by setting `XUTRIX_NNUE` before starting the engine:
+
+```powershell
+$env:XUTRIX_NNUE = "$PWD\weights\hikaru_d8_5k_h64.nnue"
+.\xutrix.exe eval
+```
+
+The 5k starter network validates the training/export/load loop. Do not use it
+for rated matches until it passes tactical regression and gauntlet testing.
 
 ## Training Data Pipeline
 
@@ -142,6 +179,5 @@ time per position.
 ## Next Iterations
 
 - Add perft test fixtures.
-- Add time management and iterative deepening.
 - Replace or blend evaluation with an NNUE-style evaluator.
 - Add a training/export pipeline for neural-network weights.

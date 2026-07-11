@@ -15,6 +15,7 @@ c_engine/tools/stockfish/
 bot/lichess-bot/
 bot/config.yml
 bot/*.log
+bot/logs/
 bot/game_records/
 bot/venv/
 lichess_bot_auto_logs/

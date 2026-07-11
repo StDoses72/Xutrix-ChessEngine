@@ -17,9 +17,29 @@
 
 #define MAX_CLI_THREADS 64
 #define MAX_UCI_HASH_MB 4096
+#define UCI_DEFAULT_DEPTH 13
+#define UCI_TIMED_MAX_DEPTH 13
+#define UCI_DEFAULT_MOVES_TO_GO 30
+#define UCI_MIN_MOVE_TIME_MS 10
+#define UCI_DEFAULT_BOOK_MAX_PLY 18
+#define UCI_MAX_BOOK_PLY 40
+
+typedef struct {
+    int depth;
+    int has_depth;
+    int movetime_ms;
+    int wtime_ms;
+    int btime_ms;
+    int winc_ms;
+    int binc_ms;
+    int movestogo;
+    int infinite;
+} UciGoParams;
 
 static void uci_loop(void);
 static int uci_search_threads = 0;
+static int uci_own_book = 1;
+static int uci_book_max_ply = UCI_DEFAULT_BOOK_MAX_PLY;
 
 static int clamp_threads(int threads) {
     if (threads < 1) {
@@ -75,6 +95,37 @@ static int parse_positive_int_token(const char *text, int *value) {
     }
     *value = (int)parsed;
     return 1;
+}
+
+static int parse_nonnegative_int_token(const char *text, int *value) {
+    if (!text || *text == '\0') {
+        return 0;
+    }
+    char *end = NULL;
+    long parsed = strtol(text, &end, 10);
+    if (end == text || *end != '\0' || parsed < 0) {
+        return 0;
+    }
+    if (parsed > 100000000) {
+        parsed = 100000000;
+    }
+    *value = (int)parsed;
+    return 1;
+}
+
+static int parse_bool_token(const char *text, int *value) {
+    if (!text) {
+        return 0;
+    }
+    if (strcmp(text, "true") == 0 || strcmp(text, "1") == 0 || strcmp(text, "yes") == 0) {
+        *value = 1;
+        return 1;
+    }
+    if (strcmp(text, "false") == 0 || strcmp(text, "0") == 0 || strcmp(text, "no") == 0) {
+        *value = 0;
+        return 1;
+    }
+    return 0;
 }
 
 static int optional_threads_from_args(int argc, char **argv, int index, int *fen_start) {
@@ -796,7 +847,137 @@ static void handle_setoption(char *line) {
             mb = MAX_UCI_HASH_MB;
         }
         (void)tt_resize_mb(mb);
+    } else if (strncmp(name, "OwnBook", 7) == 0) {
+        int enabled = 0;
+        if (parse_bool_token(value, &enabled)) {
+            uci_own_book = enabled;
+        }
+    } else if (strncmp(name, "BookMaxPly", 10) == 0) {
+        int max_ply = 0;
+        if (parse_nonnegative_int_token(value, &max_ply)) {
+            if (max_ply > UCI_MAX_BOOK_PLY) {
+                max_ply = UCI_MAX_BOOK_PLY;
+            }
+            uci_book_max_ply = max_ply;
+        }
     }
+}
+
+static void init_uci_go_params(UciGoParams *params) {
+    params->depth = UCI_DEFAULT_DEPTH;
+    params->has_depth = 0;
+    params->movetime_ms = -1;
+    params->wtime_ms = -1;
+    params->btime_ms = -1;
+    params->winc_ms = 0;
+    params->binc_ms = 0;
+    params->movestogo = 0;
+    params->infinite = 0;
+}
+
+static void parse_uci_go(char *line, UciGoParams *params) {
+    init_uci_go_params(params);
+
+    char *token = strtok(line, " \t\r\n");
+    if (token && strcmp(token, "go") == 0) {
+        token = strtok(NULL, " \t\r\n");
+    }
+    while (token) {
+        if (strcmp(token, "infinite") == 0) {
+            params->infinite = 1;
+            token = strtok(NULL, " \t\r\n");
+            continue;
+        }
+
+        char *value = strtok(NULL, " \t\r\n");
+        if (!value) {
+            break;
+        }
+
+        int parsed = 0;
+        if (strcmp(token, "depth") == 0 && parse_positive_int_token(value, &parsed)) {
+            params->depth = parsed;
+            params->has_depth = 1;
+        } else if (strcmp(token, "movetime") == 0 && parse_nonnegative_int_token(value, &parsed)) {
+            params->movetime_ms = parsed;
+        } else if (strcmp(token, "wtime") == 0 && parse_nonnegative_int_token(value, &parsed)) {
+            params->wtime_ms = parsed;
+        } else if (strcmp(token, "btime") == 0 && parse_nonnegative_int_token(value, &parsed)) {
+            params->btime_ms = parsed;
+        } else if (strcmp(token, "winc") == 0 && parse_nonnegative_int_token(value, &parsed)) {
+            params->winc_ms = parsed;
+        } else if (strcmp(token, "binc") == 0 && parse_nonnegative_int_token(value, &parsed)) {
+            params->binc_ms = parsed;
+        } else if (strcmp(token, "movestogo") == 0 && parse_positive_int_token(value, &parsed)) {
+            params->movestogo = parsed;
+        }
+
+        token = strtok(NULL, " \t\r\n");
+    }
+}
+
+static int uci_time_overhead_ms(int clock_ms) {
+    int overhead = 75;
+    if (clock_ms < 1000) {
+        overhead = 25;
+    } else if (clock_ms > 60000) {
+        overhead = 300;
+    } else if (clock_ms > 10000) {
+        overhead = 150;
+    }
+    if (overhead > clock_ms / 2) {
+        overhead = clock_ms / 2;
+    }
+    return overhead;
+}
+
+static int allocate_uci_time_ms(const Board *board, const UciGoParams *params) {
+    if (params->movetime_ms >= 0) {
+        int budget = params->movetime_ms - uci_time_overhead_ms(params->movetime_ms);
+        if (budget < 1) {
+            budget = 1;
+        }
+        return budget;
+    }
+
+    int clock_ms = board->side_to_move == WHITE ? params->wtime_ms : params->btime_ms;
+    if (clock_ms < 0) {
+        return 0;
+    }
+
+    int inc_ms = board->side_to_move == WHITE ? params->winc_ms : params->binc_ms;
+    int usable = clock_ms - uci_time_overhead_ms(clock_ms);
+    if (usable < 1) {
+        usable = 1;
+    }
+
+    int moves_to_go = params->movestogo > 0 ? params->movestogo : UCI_DEFAULT_MOVES_TO_GO;
+    int budget = usable / moves_to_go + (inc_ms * 3) / 4;
+    int cap = 0;
+    if (params->movestogo > 0 && moves_to_go <= 2) {
+        cap = usable;
+    } else if (params->movestogo > 0) {
+        cap = usable / 2 + inc_ms;
+    } else {
+        cap = usable / 6 + inc_ms;
+    }
+
+    if (cap < UCI_MIN_MOVE_TIME_MS) {
+        cap = UCI_MIN_MOVE_TIME_MS;
+    }
+    if (budget > cap) {
+        budget = cap;
+    }
+    if (budget < UCI_MIN_MOVE_TIME_MS) {
+        budget = UCI_MIN_MOVE_TIME_MS;
+    }
+    if (budget > usable) {
+        budget = usable;
+    }
+    if (budget < 1) {
+        budget = 1;
+    }
+    return budget;
 }
 
 static void uci_loop(void) {
@@ -820,6 +1001,10 @@ static void uci_loop(void) {
             printf("option name Hash type spin default %d min 1 max %d\n",
                    tt_hash_mb(),
                    MAX_UCI_HASH_MB);
+            printf("option name OwnBook type check default true\n");
+            printf("option name BookMaxPly type spin default %d min 0 max %d\n",
+                   UCI_DEFAULT_BOOK_MAX_PLY,
+                   UCI_MAX_BOOK_PLY);
             printf("uciok\n");
         } else if (strcmp(line, "isready") == 0) {
             printf("readyok\n");
@@ -831,32 +1016,44 @@ static void uci_loop(void) {
         } else if (strncmp(line, "position", 8) == 0) {
             set_position(&board, line);
         } else if (strncmp(line, "go", 2) == 0) {
-            int depth = 4;
-            char *depth_text = strstr(line, "depth");
-            if (depth_text) {
-                depth = atoi(depth_text + 5);
-                if (depth < 1) {
-                    depth = 1;
-                }
+            UciGoParams params;
+            parse_uci_go(line, &params);
+            Move book_move;
+            if (uci_own_book && opening_book_pick_move(&board, uci_book_max_ply, &book_move)) {
+                char best[6] = "0000";
+                move_to_uci(book_move, best);
+                printf("info string book move %s ply %d\n", best, board.ply);
+                printf("bestmove %s\n", best);
+                continue;
             }
+            int time_ms = params.infinite ? 0 : allocate_uci_time_ms(&board, &params);
+            int depth = params.has_depth ? params.depth : (time_ms > 0 ? UCI_TIMED_MAX_DEPTH : UCI_DEFAULT_DEPTH);
             int threads = effective_uci_threads();
-            SearchResult result = threads > 1
-                ? search_iterative_parallel(&board, depth, threads)
-                : search_iterative(&board, depth);
+            SearchResult result;
+            if (time_ms > 0) {
+                result = threads > 1
+                    ? search_iterative_parallel_timed(&board, depth, threads, time_ms)
+                    : search_iterative_timed(&board, depth, time_ms);
+            } else {
+                result = threads > 1
+                    ? search_iterative_parallel(&board, depth, threads)
+                    : search_iterative(&board, depth);
+            }
             char best[6] = "0000";
             if (result.best_move.from < 64) {
                 move_to_uci(result.best_move, best);
             }
+            int reported_depth = result.depth > 0 ? result.depth : 0;
             if (is_mate_score(result.score)) {
                 printf("info depth %d score mate %s%d nodes %" PRIu64 " threads %d\n",
-                       depth,
+                       reported_depth,
                        result.score >= 0 ? "" : "-",
                        mate_moves_from_score(result.score),
                        result.nodes,
                        threads);
             } else {
                 printf("info depth %d score cp %d nodes %" PRIu64 " threads %d\n",
-                       depth,
+                       reported_depth,
                        result.score,
                        result.nodes,
                        threads);

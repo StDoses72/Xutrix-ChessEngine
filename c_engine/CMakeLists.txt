@@ -9,6 +9,7 @@ if (NOT WIN32)
 endif()
 
 add_executable(xutrix
+    src/book.c
     src/board.c
     src/eval.c
     src/main.c
