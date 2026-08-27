@@ -664,7 +664,7 @@ int evaluate_classic_board(const Board *board) {
     return score;
 }
 
-int evaluate_board(const Board *board) {
+int evaluate_board(Board *board) {
     if (nnue_is_loaded()) {
         return nnue_evaluate_board(board);
     }

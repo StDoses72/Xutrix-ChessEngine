@@ -1,0 +1,25 @@
+engine,position,depth,bestmove,score,nodes,elapsed_ms,nps
+stockfish,startpos,8,e2e4,cp 36,3260,4.491,725977
+stockfish,startpos,10,e2e4,cp 69,4835,5.495,879907
+stockfish,kiwipete,8,e2a6,cp -149,4572,6.423,711828
+stockfish,kiwipete,10,e2a6,cp -169,10775,15.531,693769
+stockfish,sicilian,8,c3d5,cp -35,6278,7.047,890926
+stockfish,sicilian,10,a2a4,cp -33,13578,15.722,863642
+stockfish,tactical,8,g1f1,cp 474,2606,2.339,1114342
+stockfish,tactical,10,f5e4,cp 462,8112,6.310,1285660
+xutrix-classic,startpos,8,b1c3,cp 8,41905,28.541,1468223
+xutrix-classic,startpos,10,b1c3,cp 15,140831,96.554,1458572
+xutrix-classic,kiwipete,8,d5e6,cp -38,1420006,1808.488,785190
+xutrix-classic,kiwipete,10,e2a6,cp -38,5560610,6574.348,845804
+xutrix-classic,sicilian,8,a1b1,cp 52,570543,584.425,976247
+xutrix-classic,sicilian,10,a1b1,cp 48,2761199,2844.181,970824
+xutrix-classic,tactical,8,f5e4,cp 423,45912,14.988,3063312
+xutrix-classic,tactical,10,f5e4,cp 441,155506,53.116,2927684
+xutrix-nnue,startpos,8,c2c3,cp 37,286203,115.957,2468174
+xutrix-nnue,startpos,10,c2c3,cp 38,1478700,716.676,2063275
+xutrix-nnue,kiwipete,8,d5e6,cp 32,7180146,6552.649,1095762
+xutrix-nnue,kiwipete,10,d5e6,cp 39,32041539,25470.132,1258004
+xutrix-nnue,sicilian,8,a2a4,cp 14,896062,508.938,1760651
+xutrix-nnue,sicilian,10,a1c1,cp 11,7732612,4360.999,1773129
+xutrix-nnue,tactical,8,g2g4,cp 182,55701,12.919,4311657
+xutrix-nnue,tactical,10,f2f4,cp 206,244807,68.070,3596374

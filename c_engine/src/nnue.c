@@ -6,7 +6,6 @@
 #include <string.h>
 
 #define NNUE_MAGIC "XNNUE001"
-#define NNUE_MAX_HIDDEN 512
 #define NNUE_CLIP 127
 
 typedef struct {
@@ -27,6 +26,14 @@ typedef struct {
 } NNUEFileHeader;
 
 static NNUE net = {0};
+static uint32_t net_generation = 1;
+
+static void bump_generation(void) {
+    ++net_generation;
+    if (net_generation == 0) {
+        net_generation = 1;
+    }
+}
 
 static int feature_index_for_piece(int piece, int square) {
     int offset;
@@ -63,10 +70,15 @@ void nnue_unload(void) {
     free(net.hidden_bias);
     free(net.output_weights);
     memset(&net, 0, sizeof(net));
+    bump_generation();
 }
 
 int nnue_is_loaded(void) {
     return net.loaded;
+}
+
+uint32_t nnue_generation(void) {
+    return net_generation;
 }
 
 int nnue_load(const char *path) {
@@ -83,7 +95,7 @@ int nnue_load(const char *path) {
     if (memcmp(header.magic, NNUE_MAGIC, sizeof(header.magic)) != 0 ||
         header.feature_count != NNUE_FEATURE_COUNT ||
         header.hidden <= 0 ||
-        header.hidden > NNUE_MAX_HIDDEN ||
+        header.hidden > XUTRIX_NNUE_MAX_HIDDEN ||
         header.scale <= 0) {
         fclose(file);
         return 0;
@@ -126,6 +138,7 @@ int nnue_load(const char *path) {
     net.output_weights = output_weights;
     net.output_bias = output_bias;
     net.loaded = 1;
+    bump_generation();
     return 1;
 }
 
@@ -137,15 +150,19 @@ int nnue_try_load_from_env(void) {
     return nnue_load(path);
 }
 
-int nnue_evaluate_board(const Board *board) {
-    if (!net.loaded) {
-        return evaluate_classic_board(board);
+void nnue_refresh_accumulator(Board *board) {
+    if (!board) {
+        return;
     }
 
-    int32_t accumulator[NNUE_MAX_HIDDEN];
+    if (!net.loaded) {
+        board->nnue_accumulator_valid = 0;
+        board->nnue_generation = net_generation;
+        return;
+    }
 
     for (int i = 0; i < net.hidden; ++i) {
-        accumulator[i] = net.hidden_bias[i];
+        board->nnue_accumulator[i] = net.hidden_bias[i];
     }
 
     for (int sq = 0; sq < 64; ++sq) {
@@ -156,13 +173,65 @@ int nnue_evaluate_board(const Board *board) {
         }
         const int16_t *weights = &net.feature_weights[(size_t)feature * (size_t)net.hidden];
         for (int i = 0; i < net.hidden; ++i) {
-            accumulator[i] += weights[i];
+            board->nnue_accumulator[i] += weights[i];
         }
+    }
+
+    board->nnue_generation = net_generation;
+    board->nnue_accumulator_valid = 1;
+}
+
+static int accumulator_can_update(const Board *board) {
+    return net.loaded &&
+           board &&
+           board->nnue_accumulator_valid &&
+           board->nnue_generation == net_generation;
+}
+
+void nnue_accumulator_add_piece(Board *board, int piece, int square) {
+    if (!accumulator_can_update(board)) {
+        return;
+    }
+
+    int feature = feature_index_for_piece(piece, square);
+    if (feature < 0) {
+        return;
+    }
+
+    const int16_t *weights = &net.feature_weights[(size_t)feature * (size_t)net.hidden];
+    for (int i = 0; i < net.hidden; ++i) {
+        board->nnue_accumulator[i] += weights[i];
+    }
+}
+
+void nnue_accumulator_remove_piece(Board *board, int piece, int square) {
+    if (!accumulator_can_update(board)) {
+        return;
+    }
+
+    int feature = feature_index_for_piece(piece, square);
+    if (feature < 0) {
+        return;
+    }
+
+    const int16_t *weights = &net.feature_weights[(size_t)feature * (size_t)net.hidden];
+    for (int i = 0; i < net.hidden; ++i) {
+        board->nnue_accumulator[i] -= weights[i];
+    }
+}
+
+int nnue_evaluate_board(Board *board) {
+    if (!net.loaded) {
+        return evaluate_classic_board(board);
+    }
+
+    if (!board->nnue_accumulator_valid || board->nnue_generation != net_generation) {
+        nnue_refresh_accumulator(board);
     }
 
     int32_t output = net.output_bias;
     for (int i = 0; i < net.hidden; ++i) {
-        output += clipped_relu(accumulator[i]) * net.output_weights[i];
+        output += clipped_relu(board->nnue_accumulator[i]) * net.output_weights[i];
     }
 
     return (int)(output / net.scale);

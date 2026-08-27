@@ -1,4 +1,5 @@
 #include "xutrix.h"
+#include "nnue.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -160,6 +161,8 @@ void board_clear(Board *board) {
     board->en_passant = -1;
     board->fullmove_number = 1;
     board->hash = board_compute_hash(board);
+    board->nnue_accumulator_valid = 0;
+    board->nnue_generation = nnue_generation();
 }
 
 void board_refresh_bitboards(Board *board) {
@@ -180,6 +183,7 @@ void board_refresh_bitboards(Board *board) {
         board->occupancy[side] |= mask;
         board->occupied |= mask;
     }
+    nnue_refresh_accumulator(board);
 }
 
 uint64_t board_compute_hash(const Board *board) {

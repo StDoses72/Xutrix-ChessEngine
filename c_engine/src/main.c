@@ -211,6 +211,37 @@ static void print_search_score_pair(const Board *board, int side_score) {
     }
 }
 
+static void print_search_stats(const char *prefix, const SearchStats *stats) {
+    printf("%sstats "
+           "tt_probes=%" PRIu64 " tt_hits=%" PRIu64 " tt_cutoffs=%" PRIu64 " "
+           "qnodes=%" PRIu64 " q_stand_pat_cutoffs=%" PRIu64 " q_see_prunes=%" PRIu64
+           " q_beta_cutoffs=%" PRIu64 " "
+           "null_attempts=%" PRIu64 " null_searches=%" PRIu64 " null_cutoffs=%" PRIu64 " "
+           "lmr_attempts=%" PRIu64 " lmr_reductions=%" PRIu64 " lmr_researches=%" PRIu64 " "
+           "pvs_researches=%" PRIu64 " beta_cutoffs=%" PRIu64 " "
+           "aspiration_fail_low=%" PRIu64 " aspiration_fail_high=%" PRIu64
+           " aspiration_researches=%" PRIu64 "\n",
+           prefix ? prefix : "",
+           stats->tt_probes,
+           stats->tt_hits,
+           stats->tt_cutoffs,
+           stats->qnodes,
+           stats->q_stand_pat_cutoffs,
+           stats->q_see_prunes,
+           stats->q_beta_cutoffs,
+           stats->null_attempts,
+           stats->null_searches,
+           stats->null_cutoffs,
+           stats->lmr_attempts,
+           stats->lmr_reductions,
+           stats->lmr_researches,
+           stats->pvs_researches,
+           stats->beta_cutoffs,
+           stats->aspiration_fail_low,
+           stats->aspiration_fail_high,
+           stats->aspiration_researches);
+}
+
 static int parse_side_name(const char *text, int *side) {
     if (!text) {
         return 0;
@@ -368,6 +399,7 @@ static void command_best(int argc, char **argv, int iterative) {
     printf("search %s\n", iterative ? "iterative" : "direct");
     print_search_score_pair(&board, result.score);
     printf("nodes %" PRIu64 "\n", result.nodes);
+    print_search_stats("", &result.stats);
     printf("time %.3f sec\n", seconds);
 }
 
@@ -413,6 +445,7 @@ static void command_best_default(int argc, char **argv) {
     printf("threads %d\n", threads);
     print_search_score_pair(&board, result.score);
     printf("nodes %" PRIu64 "\n", result.nodes);
+    print_search_stats("", &result.stats);
     printf("time %.3f sec\n", seconds);
 }
 
@@ -457,6 +490,7 @@ static void command_best_parallel(int argc, char **argv) {
     printf("threads %d\n", threads);
     print_search_score_pair(&board, result.score);
     printf("nodes %" PRIu64 "\n", result.nodes);
+    print_search_stats("", &result.stats);
     printf("time %.3f sec\n", seconds);
 }
 
@@ -1058,6 +1092,7 @@ static void uci_loop(void) {
                        result.nodes,
                        threads);
             }
+            print_search_stats("info string ", &result.stats);
             printf("bestmove %s\n", best);
         } else if (strcmp(line, "d") == 0) {
             board_print(&board);

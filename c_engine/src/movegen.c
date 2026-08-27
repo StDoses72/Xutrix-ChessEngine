@@ -1,4 +1,5 @@
 #include "xutrix.h"
+#include "nnue.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -97,11 +98,29 @@ static void bitboard_remove_piece(Board *board, int piece, int sq, uint64_t *has
 static void put_piece(Board *board, int piece, int sq, uint64_t *hash) {
     board->squares[sq] = (int8_t)piece;
     bitboard_add_piece(board, piece, sq, hash);
+    nnue_accumulator_add_piece(board, piece, sq);
 }
 
 static void clear_piece(Board *board, int piece, int sq, uint64_t *hash) {
     board->squares[sq] = EMPTY;
     bitboard_remove_piece(board, piece, sq, hash);
+    nnue_accumulator_remove_piece(board, piece, sq);
+}
+
+static void copy_position_fields(Board *dst, const Board *src) {
+    memcpy(dst->squares, src->squares, sizeof(dst->squares));
+    memcpy(dst->bitboards, src->bitboards, sizeof(dst->bitboards));
+    memcpy(dst->occupancy, src->occupancy, sizeof(dst->occupancy));
+    dst->occupied = src->occupied;
+    dst->side_to_move = src->side_to_move;
+    dst->castling = src->castling;
+    dst->en_passant = src->en_passant;
+    dst->halfmove_clock = src->halfmove_clock;
+    dst->fullmove_number = src->fullmove_number;
+    dst->hash = src->hash;
+    dst->ply = src->ply;
+    dst->nnue_accumulator_valid = 0;
+    dst->nnue_generation = 0;
 }
 
 static void add_move(MoveList *list, int from, int to, int promotion, int flags) {
@@ -819,7 +838,8 @@ static int en_passant_is_legal(const Board *board, int from, int to, int side) {
         return 0;
     }
 
-    Board temp = *board;
+    Board temp;
+    copy_position_fields(&temp, board);
     clear_piece(&temp, moving_piece, from, NULL);
     clear_piece(&temp, captured_piece, captured_sq, NULL);
     put_piece(&temp, moving_piece, to, NULL);
@@ -1106,7 +1126,8 @@ int see_move(const Board *board, Move move) {
     }
     movegen_init_attack_tables();
 
-    Board temp = *board;
+    Board temp;
+    copy_position_fields(&temp, board);
     int side = piece_color(temp.squares[move.from]);
     int target = move.to;
     int captured_square = target;

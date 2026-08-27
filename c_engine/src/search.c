@@ -55,6 +55,7 @@ typedef struct {
 
 typedef struct {
     uint64_t nodes;
+    SearchStats stats;
     Move killer_moves[MAX_PLY][2];
     Move counter_moves[2][7][64];
     int history_moves[2][64][64];
@@ -107,6 +108,27 @@ static Move invalid_move(void) {
 
 static int is_valid_move(Move move) {
     return move.from < 64 && move.to < 64;
+}
+
+static void search_stats_add(SearchStats *dst, const SearchStats *src) {
+    dst->tt_probes += src->tt_probes;
+    dst->tt_hits += src->tt_hits;
+    dst->tt_cutoffs += src->tt_cutoffs;
+    dst->qnodes += src->qnodes;
+    dst->q_stand_pat_cutoffs += src->q_stand_pat_cutoffs;
+    dst->q_see_prunes += src->q_see_prunes;
+    dst->q_beta_cutoffs += src->q_beta_cutoffs;
+    dst->null_attempts += src->null_attempts;
+    dst->null_searches += src->null_searches;
+    dst->null_cutoffs += src->null_cutoffs;
+    dst->lmr_attempts += src->lmr_attempts;
+    dst->lmr_reductions += src->lmr_reductions;
+    dst->lmr_researches += src->lmr_researches;
+    dst->pvs_researches += src->pvs_researches;
+    dst->beta_cutoffs += src->beta_cutoffs;
+    dst->aspiration_fail_low += src->aspiration_fail_low;
+    dst->aspiration_fail_high += src->aspiration_fail_high;
+    dst->aspiration_researches += src->aspiration_researches;
 }
 
 static int normalize_thread_count(int threads, int work_count) {
@@ -553,10 +575,12 @@ static void tt_write(SearchContext *ctx, uint64_t hash, const TTEntry *value) {
 
 static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, int *beta,
                     Move *tt_move, int *score) {
+    ++ctx->stats.tt_probes;
     TTEntry entry;
     if (!tt_read(ctx, hash, &entry)) {
         return 0;
     }
+    ++ctx->stats.tt_hits;
 
     *tt_move = entry.best;
     if (entry.depth < depth) {
@@ -565,6 +589,7 @@ static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, in
 
     if (entry.flag == TT_EXACT) {
         *score = entry.score;
+        ++ctx->stats.tt_cutoffs;
         return 1;
     }
     if (entry.flag == TT_LOWER && entry.score > *alpha) {
@@ -574,6 +599,7 @@ static int tt_probe(SearchContext *ctx, uint64_t hash, int depth, int *alpha, in
     }
     if (*alpha >= *beta) {
         *score = entry.score;
+        ++ctx->stats.tt_cutoffs;
         return 1;
     }
     return 0;
@@ -664,13 +690,14 @@ static int piece_value(int piece) {
     return values[piece_type(piece)];
 }
 
-static int side_relative_eval(const Board *board) {
+static int side_relative_eval(Board *board) {
     int eval = evaluate_board(board);
     return board->side_to_move == WHITE ? eval : -eval;
 }
 
 static SearchResult fallback_search_result(Board *board) {
     SearchResult result;
+    memset(&result, 0, sizeof(result));
     result.best_move = invalid_move();
     result.score = 0;
     result.nodes = 0;
@@ -768,6 +795,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta, int
         return 0;
     }
     ++ctx->nodes;
+    ++ctx->stats.qnodes;
 
     int checked = in_check(board, board->side_to_move);
     MoveList moves;
@@ -779,6 +807,8 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta, int
     } else {
         int stand_pat = side_relative_eval(board);
         if (stand_pat >= beta) {
+            ++ctx->stats.q_stand_pat_cutoffs;
+            ++ctx->stats.q_beta_cutoffs;
             return beta;
         }
         if (stand_pat > alpha) {
@@ -792,6 +822,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta, int
     for (int i = 0; i < moves.count; ++i) {
         Move move = moves.moves[i];
         if (!checked && (move.flags & MOVE_CAPTURE) && !(move.flags & MOVE_PROMOTION) && see_move(board, move) < 0) {
+            ++ctx->stats.q_see_prunes;
             continue;
         }
         make_move(board, move);
@@ -802,6 +833,7 @@ static int quiescence(SearchContext *ctx, Board *board, int alpha, int beta, int
         }
 
         if (score >= beta) {
+            ++ctx->stats.q_beta_cutoffs;
             return beta;
         }
         if (score > alpha) {
@@ -842,21 +874,26 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
     }
 
     if (depth >= NULL_MOVE_MIN_DEPTH && !checked && !is_mate_window(alpha, beta) &&
-        has_non_pawn_material(board, board->side_to_move) && side_relative_eval(board) >= beta) {
-        NullMoveUndo undo;
-        if (make_null_move(board, &undo)) {
-            int reduction = NULL_MOVE_REDUCTION + depth / 6;
-            int reduced_depth = depth - 1 - reduction;
-            if (reduced_depth < 0) {
-                reduced_depth = 0;
-            }
-            int score = -negamax(ctx, board, reduced_depth, -beta, -beta + 1, ply + 1, invalid_move());
-            undo_null_move(board, &undo);
-            if (ctx->stopped) {
-                return 0;
-            }
-            if (score >= beta) {
-                return beta;
+        has_non_pawn_material(board, board->side_to_move)) {
+        ++ctx->stats.null_attempts;
+        if (side_relative_eval(board) >= beta) {
+            NullMoveUndo undo;
+            if (make_null_move(board, &undo)) {
+                ++ctx->stats.null_searches;
+                int reduction = NULL_MOVE_REDUCTION + depth / 6;
+                int reduced_depth = depth - 1 - reduction;
+                if (reduced_depth < 0) {
+                    reduced_depth = 0;
+                }
+                int score = -negamax(ctx, board, reduced_depth, -beta, -beta + 1, ply + 1, invalid_move());
+                undo_null_move(board, &undo);
+                if (ctx->stopped) {
+                    return 0;
+                }
+                if (score >= beta) {
+                    ++ctx->stats.null_cutoffs;
+                    return beta;
+                }
             }
         }
     }
@@ -873,16 +910,20 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
         } else {
             int child_depth = depth - 1;
             int gives_check = in_check(board, board->side_to_move);
+            ++ctx->stats.lmr_attempts;
             int reduction = lmr_reduction(depth, i, move, checked, gives_check, alpha, beta);
             if (reduction > 0 && child_depth - reduction > 0) {
+                ++ctx->stats.lmr_reductions;
                 score = -negamax(ctx, board, child_depth - reduction, -alpha - 1, -alpha, ply + 1, move);
                 if (!ctx->stopped && score > alpha) {
+                    ++ctx->stats.lmr_researches;
                     score = -negamax(ctx, board, child_depth, -alpha - 1, -alpha, ply + 1, move);
                 }
             } else {
                 score = -negamax(ctx, board, child_depth, -alpha - 1, -alpha, ply + 1, move);
             }
             if (score > alpha && score < beta) {
+                ++ctx->stats.pvs_researches;
                 score = -negamax(ctx, board, child_depth, -beta, -alpha, ply + 1, move);
             }
         }
@@ -899,6 +940,7 @@ static int negamax(SearchContext *ctx, Board *board, int depth, int alpha, int b
             alpha = score;
         }
         if (alpha >= beta) {
+            ++ctx->stats.beta_cutoffs;
             store_killer(ctx, move, ply);
             store_history(ctx, move, board->side_to_move, depth);
             store_countermove(ctx, board, previous_move, move, board->side_to_move);
@@ -1035,6 +1077,7 @@ uint64_t perft_parallel(Board *board, int depth, int threads) {
 
 static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int alpha, int beta, int reset_heuristics) {
     SearchResult result;
+    memset(&result, 0, sizeof(result));
     result.best_move = invalid_move();
     result.score = 0;
     result.nodes = ctx->nodes;
@@ -1042,6 +1085,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
 
     if (search_should_stop(ctx)) {
         result.nodes = ctx->nodes;
+        result.stats = ctx->stats;
         return result;
     }
 
@@ -1062,6 +1106,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         result.score = in_check(board, board->side_to_move) ? -MATE_SCORE : 0;
         result.nodes = ctx->nodes;
         result.depth = depth;
+        result.stats = ctx->stats;
         return result;
     }
 
@@ -1074,6 +1119,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         result.score = MATE_SCORE - 1;
         result.nodes = ctx->nodes;
         result.depth = depth;
+        result.stats = ctx->stats;
         tt_store(ctx, board->hash, ctx->root_mate_move, result.score, depth, TT_EXACT);
         return result;
     }
@@ -1093,6 +1139,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
         } else {
             score = -negamax(ctx, board, depth - 1, -alpha - 1, -alpha, 1, move);
             if (score > alpha && score < beta) {
+                ++ctx->stats.pvs_researches;
                 score = -negamax(ctx, board, depth - 1, -beta, -alpha, 1, move);
             }
         }
@@ -1101,6 +1148,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
             result.best_move = invalid_move();
             result.nodes = ctx->nodes;
             result.depth = 0;
+            result.stats = ctx->stats;
             return result;
         }
         if (score > best_score) {
@@ -1123,6 +1171,7 @@ static SearchResult search_root(SearchContext *ctx, Board *board, int depth, int
     result.score = best_score;
     result.nodes = ctx->nodes;
     result.depth = depth;
+    result.stats = ctx->stats;
     return result;
 }
 
@@ -1165,6 +1214,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
             total_nodes += current.nodes;
             if (ctx->stopped) {
                 final_result.nodes = total_nodes;
+                final_result.stats = ctx->stats;
                 return final_result;
             }
 
@@ -1172,11 +1222,18 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
                 break;
             }
 
+            int failed_low = current.score <= alpha;
+            if (failed_low) {
+                ++ctx->stats.aspiration_fail_low;
+            } else {
+                ++ctx->stats.aspiration_fail_high;
+            }
             ++attempts;
+            ++ctx->stats.aspiration_researches;
             if (attempts >= 4) {
                 alpha = -INF_SCORE;
                 beta = INF_SCORE;
-            } else if (current.score <= alpha) {
+            } else if (failed_low) {
                 alpha -= window;
                 window *= 2;
             } else {
@@ -1197,6 +1254,7 @@ static SearchResult search_iterative_with_context(SearchContext *ctx, Board *boa
         }
     }
 
+    final_result.stats = ctx->stats;
     return final_result;
 }
 
@@ -1313,6 +1371,7 @@ static SearchResult search_iterative_parallel_with_limit(Board *board, int max_d
         workers[i].worker_id = i;
         workers[i].deadline_ms = deadline_ms;
         workers[i].stop = &stop;
+        memset(&workers[i].result, 0, sizeof(workers[i].result));
         workers[i].result.best_move = invalid_move();
         workers[i].result.score = 0;
         workers[i].result.nodes = 0;
@@ -1336,10 +1395,12 @@ static SearchResult search_iterative_parallel_with_limit(Board *board, int max_d
     best.depth = 0;
     int best_worker = -1;
     uint64_t total_nodes = 0;
+    SearchStats total_stats = {0};
 
     for (int i = 0; i < threads; ++i) {
         xthread_join(handles[i]);
         total_nodes += workers[i].result.nodes;
+        search_stats_add(&total_stats, &workers[i].result.stats);
         LazySmpWorker *current = best_worker >= 0 ? &workers[best_worker] : NULL;
         if (lazy_smp_worker_is_better(&workers[i], current)) {
             best_worker = i;
@@ -1349,6 +1410,7 @@ static SearchResult search_iterative_parallel_with_limit(Board *board, int max_d
     if (best_worker >= 0) {
         best = workers[best_worker].result;
         best.nodes = total_nodes;
+        best.stats = total_stats;
         free(handles);
         free(workers);
         return best;

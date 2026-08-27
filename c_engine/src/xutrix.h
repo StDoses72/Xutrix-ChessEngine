@@ -46,6 +46,7 @@
 
 #define INF_SCORE 100000000
 #define MATE_SCORE 1000000
+#define XUTRIX_NNUE_MAX_HIDDEN 512
 
 typedef struct {
     uint8_t from;
@@ -82,13 +83,38 @@ typedef struct {
     uint64_t hash;
     Undo history[MAX_PLY];
     int ply;
+    int32_t nnue_accumulator[XUTRIX_NNUE_MAX_HIDDEN];
+    uint32_t nnue_generation;
+    int nnue_accumulator_valid;
 } Board;
+
+typedef struct {
+    uint64_t tt_probes;
+    uint64_t tt_hits;
+    uint64_t tt_cutoffs;
+    uint64_t qnodes;
+    uint64_t q_stand_pat_cutoffs;
+    uint64_t q_see_prunes;
+    uint64_t q_beta_cutoffs;
+    uint64_t null_attempts;
+    uint64_t null_searches;
+    uint64_t null_cutoffs;
+    uint64_t lmr_attempts;
+    uint64_t lmr_reductions;
+    uint64_t lmr_researches;
+    uint64_t pvs_researches;
+    uint64_t beta_cutoffs;
+    uint64_t aspiration_fail_low;
+    uint64_t aspiration_fail_high;
+    uint64_t aspiration_researches;
+} SearchStats;
 
 typedef struct {
     Move best_move;
     int score;
     uint64_t nodes;
     int depth;
+    SearchStats stats;
 } SearchResult;
 
 void xutrix_init(void);
@@ -126,7 +152,7 @@ int parse_uci_move(Board *board, const char *text, Move *move);
 void move_to_uci(Move move, char out[6]);
 int see_move(const Board *board, Move move);
 
-int evaluate_board(const Board *board);
+int evaluate_board(Board *board);
 int evaluate_classic_board(const Board *board);
 
 int opening_book_pick_move(Board *board, int max_ply, Move *move);
